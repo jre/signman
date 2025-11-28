@@ -3,8 +3,11 @@ package net.joshe.signman.server
 import net.joshe.signman.api.dnssdService
 import net.joshe.signman.api.dnssdUuidKey
 import java.io.OutputStream
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
-class AvahiService(conf: Config, uuid: String) {
+@OptIn(ExperimentalUuidApi::class)
+class AvahiService(conf: Config, uuid: Uuid) {
     private val escapes = mapOf('<' to "&lt;", '>' to "&gt;", '&' to "&amp;", '\'' to "&apos;", '"' to "&quot;")
 
     val xml = """
@@ -15,7 +18,7 @@ class AvahiService(conf: Config, uuid: String) {
             <service>
                 <type>$dnssdService</type>
                 <port>${conf.server.port}</port>
-                <txt-record>${escape(dnssdUuidKey)}=$uuid</txt-record>
+                <txt-record>${escape(dnssdUuidKey)}=${uuid.toHexDashString()}</txt-record>
             </service>
         </service-group>
     """.trimIndent()

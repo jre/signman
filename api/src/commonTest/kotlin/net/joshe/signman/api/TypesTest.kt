@@ -6,7 +6,10 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
+@OptIn(ExperimentalUuidApi::class)
 internal class TypesTest {
     private val colors8 = listOf(
         IndexedColor(0, RGB(0,0,0), "Black"),
@@ -62,7 +65,7 @@ internal class TypesTest {
 
     @Test fun testQueryResponseSerializer() {
         val jsonText = """{"minApi":1,"maxApi":2,"uuid":"$uuid","name":"Bob"}"""
-        val expected = QueryResponse(1, 2, uuid, "Bob")
+        val expected = QueryResponse(1, 2, Uuid.parse(uuid), "Bob")
         val parsed: QueryResponse = j.decodeFromString(jsonText)
 
         assertEquals(expected.minApi, parsed.minApi)
@@ -73,18 +76,14 @@ internal class TypesTest {
     }
 
     @Test fun testStatusResponseSerializerRGB() {
-        val jsonText = """{"uuid":"$uuid",""" +
-                """"name":"Ok",""" +
-                """"text":"Wow",""" +
+        val jsonText = """{"text":"Wow",""" +
                 """"bg":{"type":"rgb","rgb":"ffffff"},""" +
                 """"fg":{"type":"rgb","rgb":"ffbf00"},""" +
                 """"type":"rgb"}"""
-        val expected = StatusResponse(uuid, "Ok", "Wow", type = ColorType.RGB,
+        val expected = StatusResponse("Wow", type = ColorType.RGB,
             bg = RGBColor(RGB(255, 255, 255)), fg = RGBColor(RGB(255,191,0)))
         val parsed: StatusResponse = j.decodeFromString(jsonText)
 
-        assertEquals(expected.uuid, parsed.uuid)
-        assertEquals(expected.name, parsed.name)
         assertEquals(expected.text, parsed.text)
         assertEquals(expected.fg, parsed.fg)
         assertEquals(expected.bg, parsed.bg)
@@ -94,21 +93,16 @@ internal class TypesTest {
     }
 
     @Test fun testStatusResponseSerializerIndexed() {
-        val jsonText = """{"uuid":"$uuid",""" +
-                """"name":"Testy",""" +
-                """"text":"yay!",""" +
+        val jsonText = """{"text":"yay!",""" +
                 """"bg":{"type":"indexed","index":1,"rgb":"ffffff","name":"White"},""" +
                 """"fg":{"type":"indexed","index":0,"rgb":"000000","name":"Black"},""" +
                 """"type":"indexed",""" +
                 """"colors":[["000000","Black"],["ffffff","White"]]}"""
         val bw = listOf(IndexedColor(0, RGB(0,0,0), "Black"),
             IndexedColor(1, RGB(255,255,255), "White"))
-        val expected = StatusResponse(uuid, "Testy", "yay!",
-            bw[1], bw[0], ColorType.INDEXED, bw)
+        val expected = StatusResponse("yay!",bw[1], bw[0], ColorType.INDEXED, bw)
         val parsed: StatusResponse = j.decodeFromString(jsonText)
 
-        assertEquals(expected.uuid, parsed.uuid)
-        assertEquals(expected.name, parsed.name)
         assertEquals(expected.text, parsed.text)
         assertEquals(expected.fg, parsed.fg)
         assertEquals(expected.bg, parsed.bg)

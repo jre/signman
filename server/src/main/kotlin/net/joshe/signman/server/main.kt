@@ -13,9 +13,11 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.OutputStream
 import java.lang.Integer.min
-import java.util.UUID
 import kotlin.math.max
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
+@OptIn(ExperimentalUuidApi::class)
 class SignmanServer : CliktCommand() {
     private val configPath by option("-c", "--conf", help="Path to configuration file")
         .file().default(File("/etc/signman.conf"))
@@ -37,12 +39,12 @@ class SignmanServer : CliktCommand() {
 
     private fun loadConfig() = Config.load(FileInputStream(configPath))
 
-    private fun loadUuid(config: Config): UUID {
+    private fun loadUuid(config: Config): Uuid {
         val file = File(config.server.directory, "uuid.txt")
         return try {
-            UUID.fromString(file.readLines()[0])
+            Uuid.parse(file.readLines()[0])
         } catch (_: Exception) {
-            UUID.randomUUID().also { file.writeText(it.toString()) }
+            Uuid.random().also { file.writeText(it.toHexDashString()) }
         }
     }
 
@@ -67,7 +69,7 @@ class SignmanServer : CliktCommand() {
     override fun run() {
         setupLogging()
         val config = loadConfig()
-        val uuid = loadUuid(config).toString()
+        val uuid = loadUuid(config)
         if (dumpAvahiService) {
             AvahiService(config, uuid).store(System.out)
             return

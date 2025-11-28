@@ -19,6 +19,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.modules.SerializersModule
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 @Serializable(with = RGB.Serializer::class)
 data class RGB(val r: Int, val g: Int, val b: Int) {
@@ -66,17 +68,16 @@ data class RGBColor(override val rgb: RGB) : SignColor()
 @SerialName("indexed")
 data class IndexedColor(val index: Int, override val rgb: RGB, val name: String = "") : SignColor()
 
+@ExperimentalUuidApi
 @Serializable
 data class QueryResponse(
     val minApi: Int,
     val maxApi: Int,
-    val uuid: String,
+    val uuid: Uuid,
     val name: String)
 
 @Serializable
 data class StatusResponse(
-    val uuid: String,
-    val name: String,
     val text: String,
     val bg: SignColor,
     val fg: SignColor,

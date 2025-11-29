@@ -37,7 +37,6 @@ import net.joshe.signman.api.StatusResponse
 import net.joshe.signman.api.UpdateRequest
 import net.joshe.signman.api.buildSerializersModule
 import net.joshe.signman.api.toHttpAuthenticationRealm
-import java.security.MessageDigest
 import java.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -46,7 +45,6 @@ import kotlin.uuid.Uuid
 class Server(private val config: Config, private val state: State, private val auth: Auth, private val uuid: Uuid) {
 
     private val startedInst = Instant.now()
-    private val digest = MessageDigest.getInstance("SHA-256")
     private val neverCacheable = CachingOptions(CacheControl.NoStore(CacheControl.Visibility.Private))
     private val maybeCacheable = CachingOptions(CacheControl.NoCache(CacheControl.Visibility.Public))
     private val cacheableKey = AttributeKey<Pair<Instant,String?>>("MaybeCacheableLastModifiedInstant")
@@ -55,9 +53,9 @@ class Server(private val config: Config, private val state: State, private val a
         embeddedServer(Netty, port = config.server.port) {
             install(Authentication) {
                 digest("auth-digest") {
-                    algorithmName = "SHA-256"
+                    algorithmName = auth.digestAlgorithm
                     realm = uuid.toHttpAuthenticationRealm()
-                    digestProvider { user, realm -> auth.getHA1Digest(user, Uuid.parse(realm), digest) }
+                    digestProvider(auth::digestProvider)
                 }
             }
 

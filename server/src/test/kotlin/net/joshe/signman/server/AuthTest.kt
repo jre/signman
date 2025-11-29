@@ -1,13 +1,11 @@
 package net.joshe.signman.server
 
 import java.io.ByteArrayInputStream
-import java.security.MessageDigest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 internal class AuthTest {
-    val digest: MessageDigest = MessageDigest.getInstance("SHA-256")
     private val uuid1 = "00112233-4455-6677-8899-aabbccddeeff"
     private val uuid2 = "ffeeddcc-bbaa-9988-7766-554433221100"
 
@@ -26,7 +24,7 @@ internal class AuthTest {
         "denise" to "5f9f7046841e5849b759d2ebf6dbdde1ee6cc99bed8c5821fd6744942a6d8f41", // uuid2
     )
 
-    private fun get(auth: Auth, user: String, uuid: String) = auth.getHA1Digest(user, uuid, digest)?.toHexString()
+    private fun get(auth: Auth, user: String, uuid: String) = auth.digestProvider(user, uuid)?.toHexString()
 
     @Test fun testHA1Digest() {
         val auth = Auth.loadStream(ByteArrayInputStream(passwdText.toByteArray()))

@@ -9,6 +9,8 @@ import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
 class Auth private constructor(private val users: Map<String,String>) {
+    val digestAlgorithm = "SHA-256"
+    private val digest = MessageDigest.getInstance(digestAlgorithm)
     private val ha1RealmsCache = mutableMapOf<Uuid,MutableMap<String,ByteArray>>()
 
     companion object {
@@ -28,7 +30,8 @@ class Auth private constructor(private val users: Map<String,String>) {
 
     private fun ha1Cache(uuid: Uuid) = ha1RealmsCache.getOrElse(uuid) { mutableMapOf() }
 
-    fun getHA1Digest(user: String, uuid: Uuid, digest: MessageDigest) = users[user]?.let { pass ->
+    fun digestProvider(user: String, realm: String) = users[user]?.let { pass ->
+        val uuid = Uuid.parse(realm)
         ha1Cache(uuid).getOrPut(user) { digest.digest(getDigestHA1Input(user, pass, uuid)) }
     }
 }

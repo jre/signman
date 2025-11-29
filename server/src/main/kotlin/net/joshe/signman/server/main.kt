@@ -9,8 +9,6 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.file
 import org.slf4j.simple.SimpleLogger
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.io.OutputStream
 import java.lang.Integer.min
 import kotlin.math.max
@@ -37,7 +35,7 @@ class SignmanServer : CliktCommand() {
         System.setProperty(SimpleLogger.SHOW_SHORT_LOG_NAME_KEY, "true")
     }
 
-    private fun loadConfig() = Config.load(FileInputStream(configPath))
+    private fun loadConfig() = configPath.inputStream().use(Config::load)
 
     private fun loadUuid(config: Config): Uuid {
         val file = File(config.server.directory, "uuid.txt")
@@ -52,7 +50,9 @@ class SignmanServer : CliktCommand() {
         val file = File(config.server.directory, "state.json")
         val renderer = Renderer(config.sign)
         return try {
-            State.load(FileInputStream(file), renderer) { writeFile(file) { store(it) } }
+            file.inputStream().use { input ->
+                State.load(input, renderer) { writeFile(file) { store(it) } }
+            }
         } catch (_: Exception) {
             State.initialize(renderer) { writeFile(file) { store(it) } }
         }
@@ -62,7 +62,7 @@ class SignmanServer : CliktCommand() {
 
     private fun writeFile(file: File, body: (OutputStream) -> Unit) {
         val tmp = File.createTempFile("tmp", null, file.absoluteFile.parentFile)
-        body(FileOutputStream(tmp))
+        tmp.outputStream().use(body)
         tmp.renameTo(file)
     }
 

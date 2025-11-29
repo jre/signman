@@ -1,7 +1,6 @@
 package net.joshe.signman.server
 
 import net.joshe.signman.api.getDigestHA1Input
-import java.io.FileInputStream
 import java.io.InputStream
 import java.security.MessageDigest
 import java.util.Properties
@@ -15,7 +14,7 @@ class Auth private constructor(private val users: Map<String,String>) {
     companion object {
         fun load(conf: Config.AuthConfig): Auth {
             check(conf.type == Config.AuthType.FILE)
-            return loadStream(FileInputStream(conf.path))
+            return conf.path.inputStream().use(::loadStream)
         }
 
         internal fun loadStream(stream: InputStream) = Auth(Properties()

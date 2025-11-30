@@ -22,6 +22,9 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+const val rgbColorTypeKey = "rgb"
+const val indexedColorTypeKey = "indexed"
+
 @Serializable(with = RGB.Serializer::class)
 data class RGB(val r: Int, val g: Int, val b: Int) {
     init {
@@ -51,8 +54,8 @@ data class RGB(val r: Int, val g: Int, val b: Int) {
 
 @Serializable
 enum class ColorType {
-    @SerialName("rgb") RGB,
-    @SerialName("indexed") INDEXED;
+    @SerialName(rgbColorTypeKey) RGB,
+    @SerialName(indexedColorTypeKey) INDEXED;
 }
 
 @Serializable
@@ -61,11 +64,11 @@ sealed class SignColor {
 }
 
 @Serializable
-@SerialName("rgb")
+@SerialName(rgbColorTypeKey)
 data class RGBColor(override val rgb: RGB) : SignColor()
 
 @Serializable
-@SerialName("indexed")
+@SerialName(indexedColorTypeKey)
 data class IndexedColor(val index: Int, override val rgb: RGB, val name: String = "") : SignColor()
 
 @ExperimentalUuidApi
@@ -116,10 +119,10 @@ internal class BareSignColorJsonSerializer(private val colors: List<IndexedColor
     : JsonTransformingSerializer<SignColor>(SignColor.serializer()) {
     override fun transformDeserialize(element: JsonElement) = JsonObject(element.jsonPrimitive.let { elm ->
         if (elm.isString)
-            mapOf("type" to JsonPrimitive("rgb"), "rgb" to elm)
+            mapOf("type" to JsonPrimitive(rgbColorTypeKey), "rgb" to elm)
         else
             colors!![elm.int].let { color ->
-                mapOf("type" to JsonPrimitive("indexed"),
+                mapOf("type" to JsonPrimitive(indexedColorTypeKey),
                     "index" to elm,
                     "rgb" to JsonPrimitive(color.rgb.toHexString()),
                     "name" to JsonPrimitive(color.name))

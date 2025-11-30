@@ -1,6 +1,5 @@
 package net.joshe.signman.server
 
-import net.joshe.signman.api.ColorType
 import net.joshe.signman.api.SignColor
 import java.awt.Color
 import java.awt.Font
@@ -15,9 +14,9 @@ class Renderer(private val conf: Config.SignConfig) {
     private val margin = min(conf.width, conf.height) / 10 // XXX
     private var lastFontSize = 12
 
-    val img = when (conf.type) {
-        ColorType.RGB -> BufferedImage(conf.width, conf.height, BufferedImage.TYPE_INT_RGB)
-        ColorType.INDEXED -> conf.colors!!.let { colors ->
+    val img = when (conf.color) {
+        is Config.RGBColorConfig -> BufferedImage(conf.width, conf.height, BufferedImage.TYPE_INT_RGB)
+        is Config.IndexedColorConfig -> conf.color.palette.let { colors ->
             val bits = 1.rangeTo(16).first { 1.shl(it - 1) >= colors.size }
             val r = colors.map { it.rgb.r.toByte() }.toByteArray()
             val g = colors.map { it.rgb.g.toByte() }.toByteArray()

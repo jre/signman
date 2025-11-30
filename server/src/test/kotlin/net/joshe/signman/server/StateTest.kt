@@ -1,6 +1,5 @@
 package net.joshe.signman.server
 
-import net.joshe.signman.api.ColorType
 import net.joshe.signman.api.RGB
 import net.joshe.signman.api.RGBColor
 import java.io.ByteArrayInputStream
@@ -9,8 +8,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
-internal class StateText {
-    private val conf = Config.SignConfig(width = 200, height = 100, type = ColorType.RGB)
+internal class StateTest {
+    private val conf = Config.SignConfig(width = 200, height = 100,
+        color = Config.RGBColorConfig(RGBColor(RGB(0,0,0)), RGBColor(RGB(0,0,0))))
     private val fg = RGBColor(RGB(9, 9, 9))
     private val bg = RGBColor(RGB(0, 0, 255))
     private val otherFg = RGBColor(RGB(16, 16, 16))

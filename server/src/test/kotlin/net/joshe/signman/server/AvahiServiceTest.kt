@@ -1,6 +1,7 @@
 package net.joshe.signman.server
 
-import net.joshe.signman.api.ColorType
+import net.joshe.signman.api.RGB
+import net.joshe.signman.api.RGBColor
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -12,7 +13,8 @@ class AvahiServiceTest {
     private fun mk(name: String, port: Int, uuid: Uuid) = AvahiService(uuid = uuid, conf = Config(
         name = name,
         server = Config.ServerConfig(port = port, directory = File("/")),
-        sign = Config.SignConfig(width = 0, height = 0, type = ColorType.RGB),
+        sign = Config.SignConfig(width = 0, height = 0,
+            color = Config.RGBColorConfig(RGBColor(RGB(0,0,0)), background = RGBColor(RGB(0,0,0)))),
         auth = Config.AuthConfig(Config.AuthType.FILE, File("/"))))
 
     @Test fun testXMLSimple() {

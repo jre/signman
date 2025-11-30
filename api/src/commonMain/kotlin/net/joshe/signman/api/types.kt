@@ -82,17 +82,19 @@ data class QueryResponse(
 @Serializable
 data class StatusResponse(
     val text: String,
-    val bg: SignColor,
-    val fg: SignColor,
     val type: ColorType,
+    @SerialName("current-bg") val bg: SignColor,
+    @SerialName("current-fg") val fg: SignColor,
+    @SerialName("default-bg") val defaultBg: SignColor,
+    @SerialName("default-fg") val defaultFg: SignColor,
     @Serializable(with = IndexedColorListJsonSerializer::class)
     val colors: List<IndexedColor>? = null)
 
 @Serializable
 data class UpdateRequest(
     val text: String,
-    @Contextual val bg: SignColor,
-    @Contextual val fg: SignColor)
+    @Contextual val bg: SignColor? = null,
+    @Contextual val fg: SignColor? = null)
 
 fun buildSerializersModule(colors: List<IndexedColor>?) = SerializersModule {
     contextual(SignColor::class, BareSignColorJsonSerializer(colors))

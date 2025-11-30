@@ -76,7 +76,8 @@ class Server(private val config: Config, private val state: State, private val a
 
             install(ContentNegotiation) {
                 json(Json {
-                    serializersModule = buildSerializersModule(config.sign.colors)
+                    serializersModule = buildSerializersModule(
+                        (config.sign.color as? Config.IndexedColorConfig)?.palette)
                     isLenient = true
                     ignoreUnknownKeys = true
                 })
@@ -162,8 +163,10 @@ class Server(private val config: Config, private val state: State, private val a
                 text = state.text,
                 fg = state.fg,
                 bg = state.bg,
-                type = config.sign.type,
-                colors = config.sign.colors)
+                type = config.sign.color.type,
+                defaultFg = config.sign.color.foreground,
+                defaultBg = config.sign.color.background,
+                colors = (config.sign.color as? Config.IndexedColorConfig)?.palette)
         }
         call.respond(resp)
     }
@@ -171,7 +174,9 @@ class Server(private val config: Config, private val state: State, private val a
     private suspend fun endpointUpdate(call: RoutingCall) {
         val req: UpdateRequest = call.receive()
         synchronized(state) {
-            state.update(text = req.text, fg = req.fg, bg = req.bg)
+            state.update(text = req.text,
+                fg = req.fg ?: config.sign.color.foreground,
+                bg = req.bg ?: config.sign.color.background)
         }
         call.respond(HttpStatusCode.OK)
     }

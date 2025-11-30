@@ -88,6 +88,9 @@ class Server(private val config: Config, private val state: State, private val a
             routing {
                 get("/") { endpointHomepage(call) }
                 get("/api/query") { endpointQuery(call) }
+                authenticate("auth-digest") {
+                    get("/api/authenticate") { call.respond(HttpStatusCode.OK) }
+                }
                 route("/api/v1") {
                     get("/image") { endpointPng(call) }
                     get("/status") { endpointStatus(call) }

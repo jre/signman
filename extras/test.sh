@@ -8,6 +8,10 @@ usage: $0 [-a USER:PASS] -u http://SERVER[:PORT] [-v] [COMMAND [ARGS...]]
 A simple command-line client for testing the signman HTTP API.
 
 commands:
+    login
+        Test authentication credentials.
+    query
+        Show JSON server info. Authentication not needed.
     status
         Show JSON status data. Authentication not needed.
     update FOREGROUND BACKGROUND MESSAGE
@@ -59,6 +63,17 @@ case "$1" in
         test $# -gt 1 && usage "extra arguments for status command"
         find_json_formatter
         run_curl /api/v1/status | $format_json
+        ;;
+
+    query)
+        test $# -gt 1 && usage "extra arguments for $1 command"
+        find_json_formatter
+        run_curl /api/query | $format_json
+    ;;
+
+    login)
+        test $# -gt 1 && usage "extra arguments for $1 command"
+        run_curl /api/authenticate && echo 'Success!'
     ;;
 
     update)

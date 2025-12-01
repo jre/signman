@@ -21,4 +21,4 @@ plugins {
 }
 
 
-include(":server", ":api")
+include(":api", ":cli", ":client", ":server")

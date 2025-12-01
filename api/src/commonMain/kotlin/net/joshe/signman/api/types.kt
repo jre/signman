@@ -9,11 +9,13 @@ import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonTransformingSerializer
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -117,19 +119,19 @@ internal class IndexedColorListJsonSerializer : JsonTransformingSerializer<List<
         })
 }
 
-internal class BareSignColorJsonSerializer(private val colors: List<IndexedColor>?)
+class BareSignColorJsonSerializer(private val colors: List<IndexedColor>?, allowNames: Boolean = false)
     : JsonTransformingSerializer<SignColor>(SignColor.serializer()) {
-    override fun transformDeserialize(element: JsonElement) = JsonObject(element.jsonPrimitive.let { elm ->
+    private val names = (if (allowNames) colors else null)?.associate { color ->
+        Pair(color.name.lowercase(), color)
+    } ?: emptyMap()
+
+    override fun transformDeserialize(element: JsonElement) = element.jsonPrimitive.let { elm ->
         if (elm.isString)
-            mapOf("type" to JsonPrimitive(rgbColorTypeKey), "rgb" to elm)
+            names[elm.content.lowercase()]?.let { Json.encodeToJsonElement<SignColor>(it) }
+                ?: Json.encodeToJsonElement<SignColor>(RGBColor(RGB.fromHexString(elm.content)))
         else
-            colors!![elm.int].let { color ->
-                mapOf("type" to JsonPrimitive(indexedColorTypeKey),
-                    "index" to elm,
-                    "rgb" to JsonPrimitive(color.rgb.toHexString()),
-                    "name" to JsonPrimitive(color.name))
-            }
-    })
+            colors!![elm.int].let { Json.encodeToJsonElement<SignColor>(it) }
+    }
 
     override fun transformSerialize(element: JsonElement) = element.jsonObject.let { obj ->
         obj.getOrElse("index") { obj.getValue("rgb") }

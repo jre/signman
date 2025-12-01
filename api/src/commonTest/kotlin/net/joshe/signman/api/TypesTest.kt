@@ -27,9 +27,13 @@ internal class TypesTest {
 
     @Test fun testRGBSerializer() {
         for (idx in colors8.indices) {
-            val fromStr = RGB.fromHexString(colors8Hex[idx])
-            assertEquals(colors8[idx].rgb, fromStr)
+            val fromHex = RGB.fromHexString(colors8Hex[idx])
+            assertEquals(colors8[idx].rgb, fromHex)
             assertEquals(colors8Hex[idx], colors8[idx].rgb.toHexString().lowercase())
+            val sharpHex = "#" + colors8Hex[idx]
+            val fromSharpHex = RGB.fromHexString(sharpHex)
+            assertEquals(colors8[idx].rgb, fromSharpHex)
+            assertEquals(sharpHex, colors8[idx].rgb.toHexString(true).lowercase())
             val fromInt = RGB.fromInt(colors8Int[idx])
             assertEquals(colors8[idx].rgb, fromInt)
             assertEquals(colors8Int[idx], colors8[idx].rgb.toInt())

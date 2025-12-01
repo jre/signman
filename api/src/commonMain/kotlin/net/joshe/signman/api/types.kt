@@ -35,6 +35,7 @@ data class RGB(val r: Int, val g: Int, val b: Int) {
 
     companion object {
         fun fromHexString(str: String): RGB {
+            val str = str.trimStart('#')
             check(str.length == 6)
             val (r, g, b) = str.chunked(2).map { it.toInt(16) }
             return RGB(r, g, b)
@@ -43,7 +44,7 @@ data class RGB(val r: Int, val g: Int, val b: Int) {
         fun fromInt(value: Int) = RGB(r = value / 0x10000 % 0x100, g = value / 0x100 % 0x100, b = value % 0x100)
     }
 
-    fun toHexString() = String.format("%02x%02x%02x", r, g, b)
+    fun toHexString(sharp: Boolean = false) = String.format("%s%02x%02x%02x", (if (sharp) "#" else ""), r, g, b)
     fun toInt() = r * 0x10000 + g * 0x100 + b
 
     private class Serializer : KSerializer<RGB> {

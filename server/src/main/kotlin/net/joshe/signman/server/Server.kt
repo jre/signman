@@ -31,6 +31,10 @@ import io.ktor.server.routing.routing
 import io.ktor.server.util.toGMTDate
 import io.ktor.util.AttributeKey
 import io.ktor.util.escapeHTML
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import net.joshe.signman.api.QueryResponse
 import net.joshe.signman.api.StatusResponse
@@ -43,13 +47,18 @@ import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
 class Server(private val config: Config, private val state: State, private val auth: Auth, private val uuid: Uuid) {
+    private val updater = MutableStateFlow<UpdateRequest?>(null)
 
     private val startedInst = Instant.now()
     private val neverCacheable = CachingOptions(CacheControl.NoStore(CacheControl.Visibility.Private))
     private val maybeCacheable = CachingOptions(CacheControl.NoCache(CacheControl.Visibility.Public))
     private val cacheableKey = AttributeKey<Pair<Instant,String?>>("MaybeCacheableLastModifiedInstant")
 
-    fun run() {
+    suspend fun run() {
+        val updaterJob = CoroutineScope(currentCoroutineContext()).launch {
+            updater.collect(::updateCollector)
+        }
+
         embeddedServer(Netty, port = config.server.port) {
             install(Authentication) {
                 digest("auth-digest") {
@@ -101,6 +110,8 @@ class Server(private val config: Config, private val state: State, private val a
                 }
             }
         }.start(wait = true)
+
+        updaterJob.cancel()
     }
 
     private fun instantETag(inst: Instant) = inst.epochSecond.toString(32)
@@ -172,12 +183,14 @@ class Server(private val config: Config, private val state: State, private val a
     }
 
     private suspend fun endpointUpdate(call: RoutingCall) {
-        val req: UpdateRequest = call.receive()
-        synchronized(state) {
+        updater.value = call.receive()
+        call.respond(HttpStatusCode.OK)
+    }
+
+    private suspend fun updateCollector(req: UpdateRequest?) {
+        if (req != null)
             state.update(text = req.text,
                 fg = req.fg ?: config.sign.color.foreground,
                 bg = req.bg ?: config.sign.color.background)
-        }
-        call.respond(HttpStatusCode.OK)
     }
 }

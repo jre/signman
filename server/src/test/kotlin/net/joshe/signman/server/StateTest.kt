@@ -1,16 +1,21 @@
 package net.joshe.signman.server
 
+import kotlinx.coroutines.runBlocking
 import net.joshe.signman.api.RGB
 import net.joshe.signman.api.RGBColor
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
 internal class StateTest {
-    private val conf = Config.SignConfig(width = 200, height = 100,
-        color = Config.RGBColorConfig(RGBColor(RGB(0,0,0)), RGBColor(RGB(0,0,0))))
+    private val conf = Config(
+        server = Config.ServerConfig(directory = File("/nonsense")),
+        sign = Config.SignConfig(width = 200, height = 100,
+            color = Config.RGBColorConfig(RGBColor(RGB(0,0,0)), RGBColor(RGB(0,0,0)))),
+        auth = Config.AuthConfig(Config.AuthType.FILE, File("/nonexistent")))
     private val fg = RGBColor(RGB(9, 9, 9))
     private val bg = RGBColor(RGB(0, 0, 255))
     private val otherFg = RGBColor(RGB(16, 16, 16))
@@ -20,10 +25,14 @@ internal class StateTest {
             """"bg":{"type":"rgb","rgb":"${bg.rgb.toHexString()}"},""" +
             """"fg":{"type":"rgb","rgb":"${fg.rgb.toHexString()}"}}"""
 
-    private fun load(f: State.() -> Unit = {})
-            = State.load(ByteArrayInputStream(jsonText.toByteArray()), Renderer(conf), f)
-    private fun mk(f: (State.() -> Unit)? = {})
-            = State("TEST", bg, fg, Renderer(conf), f)
+    private fun load(f: State.() -> Unit = {}) = runBlocking {
+        State.load(ByteArrayInputStream(jsonText.toByteArray()),
+            Renderer(conf), f)
+    }
+
+    private fun mk(f: (State.() -> Unit) = {}) = runBlocking {
+        State.initialize(Renderer(conf), text = "TEST", fg = fg, bg = bg, onUpdate = f)
+    }
 
     @Test fun testStateLoadText() = assertEquals(mk().text, load().text)
     @Test fun testStateLoadBg() = assertEquals(mk().bg, load().bg)
@@ -32,7 +41,7 @@ internal class StateTest {
     @Test fun testStateStore() = assertEquals(jsonText,
         ByteArrayOutputStream().also { mk().store(it) }.toString())
 
-    @Test fun testStateUpdate() {
+    @Test fun testStateUpdate(): Unit = runBlocking {
         var updateCount = 0
         val actual = mk { updateCount++ }
         val default = mk()
@@ -58,7 +67,7 @@ internal class StateTest {
         assertEquals(default.bg, actual.bg)
     }
 
-    @Test fun testStateErase() {
+    @Test fun testStateErase(): Unit = runBlocking {
         var updateCount = 0
         val actual = load { updateCount++ }
         val oldMod = actual.lastModified

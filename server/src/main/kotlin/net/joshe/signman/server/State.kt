@@ -16,7 +16,7 @@ import java.time.Instant
 import java.util.zip.CRC32
 
 @Serializable
-class State(
+class State private constructor(
     @SerialName("text") private var _text: String,
     @SerialName("bg") private var _bg: SignColor,
     @SerialName("fg") private var _fg: SignColor,
@@ -30,17 +30,19 @@ class State(
     @Transient var lastModified: Instant = Instant.now()
         private set
 
-    init { wasUpdated(false) }
-
     companion object {
         private val defaultFg = RGBColor(RGB(0, 0, 0))
         private val defaultBg = RGBColor(RGB(255, 255, 255))
 
-        fun initialize(renderer: Renderer, onUpdate: State.() -> Unit)
-                = State(_text = "", _bg = defaultBg, _fg = defaultFg, renderer = renderer, onUpdate = onUpdate)
+        suspend fun initialize(renderer: Renderer, text: String = "",
+                               fg: SignColor = defaultFg, bg: SignColor = defaultBg,
+                               onUpdate: State.() -> Unit
+        ) = State(_text = text, _bg = bg, _fg = fg, renderer = renderer, onUpdate = onUpdate).apply {
+            wasUpdated(false)
+        }
 
         @OptIn(ExperimentalSerializationApi::class)
-        fun load(stream: InputStream, renderer: Renderer, onUpdate: State.() -> Unit) = Json.decodeFromStream<State>(stream)
+        suspend fun load(stream: InputStream, renderer: Renderer, onUpdate: State.() -> Unit) = Json.decodeFromStream<State>(stream)
             .apply {
                 this.renderer = renderer
                 this.onUpdate = onUpdate
@@ -51,7 +53,7 @@ class State(
     @OptIn(ExperimentalSerializationApi::class)
     fun store(stream: OutputStream) = Json.encodeToStream(this, stream)
 
-    private fun wasUpdated(callHook: Boolean = true) {
+    private suspend fun wasUpdated(callHook: Boolean = true) {
         renderer?.let { ren ->
             ren.render(text = _text, bg = _bg, fg = _fg)
             png = ren.convertPng()
@@ -62,14 +64,14 @@ class State(
             onUpdate?.invoke(this)
     }
 
-    fun erase() {
+    suspend fun erase() {
         _text = ""
         _bg = defaultBg
         _fg = defaultFg
         wasUpdated()
     }
 
-    fun update(text: String, bg: SignColor, fg: SignColor) {
+    suspend fun update(text: String, bg: SignColor, fg: SignColor) {
         _text = text
         _bg = bg
         _fg = fg

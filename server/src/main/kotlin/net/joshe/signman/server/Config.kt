@@ -20,7 +20,10 @@ import net.joshe.signman.api.RGBColor
 import net.joshe.signman.api.SignColor
 import net.joshe.signman.api.indexedColorTypeKey
 import net.joshe.signman.api.rgbColorTypeKey
+import net.joshe.signman.server.driver.JD79667Driver
+import net.joshe.signman.server.driver.SignDriver
 import java.awt.Font
+import java.awt.image.BufferedImage
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -91,13 +94,26 @@ data class Config(val server: ServerConfig, val sign: SignConfig, val auth: Auth
     @Serializable
     data class DriverConfig(
         val name: Driver,
-        @Serializable(with = FileAsStringSerializer::class)
-        val device: File)
+        val spi: SpiDeviceConfig? = null,
+        val gpio: GpioDeviceConfig? = null)
+
+    @Serializable
+    data class SpiDeviceConfig(@Serializable(with = FileAsStringSerializer::class) val device: File)
+
+    @Serializable
+    data class GpioDeviceConfig(
+        @Serializable(with = FileAsStringSerializer::class) val device: File,
+        @SerialName("dc-pin") val dcPin: Int? = null,
+        @SerialName("busy-pin") val busyPin: Int? = null,
+        @SerialName("rst-pin") val rstPin: Int? = null)
 
     @Serializable
     enum class AuthType { @SerialName("file") FILE; }
 
-    enum class Driver { @SerialName("placeholder") PLACEHOLDER; }
+    enum class Driver(val constructor: (Config) -> SignDriver) {
+        DUMMY({ object : SignDriver { override suspend fun write(img: BufferedImage) {} }}),
+        JD79667(::JD79667Driver);
+    }
 
     private class FileAsStringSerializer : KSerializer<File> {
         override val descriptor = PrimitiveSerialDescriptor(kind = PrimitiveKind.STRING,

@@ -1,7 +1,7 @@
 package net.joshe.signman.server
 
-import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.main
+import com.github.ajalt.clikt.command.SuspendingCliktCommand
+import com.github.ajalt.clikt.command.main
 import com.github.ajalt.clikt.parameters.options.counted
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
@@ -16,7 +16,7 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
-class SignmanServer : CliktCommand() {
+class SignmanServer : SuspendingCliktCommand() {
     private val configPath by option("-c", "--conf", help="Path to configuration file")
         .file().default(File("/etc/signman.conf"))
     private val quieter by option("-q", "--quiet", help="Lower the output verbosity level").counted()
@@ -46,9 +46,9 @@ class SignmanServer : CliktCommand() {
         }
     }
 
-    private fun loadState(config: Config): State {
+    private suspend fun loadState(config: Config): State {
         val file = File(config.server.directory, "state.json")
-        val renderer = Renderer(config.sign)
+        val renderer = Renderer(config)
         return try {
             file.inputStream().use { input ->
                 State.load(input, renderer) { writeFile(file) { store(it) } }
@@ -66,7 +66,7 @@ class SignmanServer : CliktCommand() {
         tmp.renameTo(file)
     }
 
-    override fun run() {
+    override suspend fun run() {
         setupLogging()
         val config = loadConfig()
         val uuid = loadUuid(config)
@@ -80,7 +80,7 @@ class SignmanServer : CliktCommand() {
     }
 }
 
-fun main(args: Array<String>) {
+suspend fun main(args: Array<String>) {
     System.setProperty("java.awt.headless", "true")
     check(java.awt.GraphicsEnvironment.isHeadless())
 

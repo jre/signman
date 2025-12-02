@@ -1,5 +1,7 @@
 package net.joshe.signman.server
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import net.joshe.signman.api.SignColor
 import java.awt.Color
 import java.awt.Font
@@ -10,7 +12,10 @@ import java.io.ByteArrayOutputStream
 import java.lang.Integer.min
 import javax.imageio.ImageIO
 
-class Renderer(private val conf: Config.SignConfig) {
+class Renderer(configuration: Config) {
+    private val mutex = Mutex()
+    private val conf = configuration.sign
+    private val driver = configuration.driver?.name?.constructor?.invoke(configuration)
     private val margin = min(conf.width, conf.height) / 10 // XXX
     private var lastFontSize = 12
 
@@ -26,7 +31,7 @@ class Renderer(private val conf: Config.SignConfig) {
         }
     }
 
-    fun render(text: String, fg: SignColor, bg: SignColor) {
+    suspend fun render(text: String, fg: SignColor, bg: SignColor): Unit = mutex.withLock {
         val g = img.createGraphics()
         val metrics = findFont(g, text, conf.font, lastFontSize)
         lastFontSize = metrics.font.size
@@ -38,6 +43,8 @@ class Renderer(private val conf: Config.SignConfig) {
         g.color = Color(fg.rgb.r, fg.rgb.g, fg.rgb.b)
         g.font = metrics.font
         g.drawString(text, x, y)
+
+        driver?.write(img)
     }
 
     fun convertPng() = ByteArrayOutputStream().also { out ->

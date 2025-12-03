@@ -33,23 +33,6 @@ class JD79667Driver(conf: Config) : IndexedSignDriver() {
 
     private val validRevision = byteArrayOf(0x03, 0x02, 0x01)
 
-    /*
-    commands on page 11 of https://cdn-shop.adafruit.com/product-files/6414/P6414_C22271-001_datasheet_ZJY180384-0352AJH-E5______.pdf
-    device flow:
-       VDD on
-       HW Reset
-       Check Busy_n (loop)
-       Initial code
-       DTM1 (R10h)
-       Power ON (R04h)
-       Check Busy_n (loop)
-       Refresh (R12h==00)
-       Check Busy_n (loop)
-       Power OFF (R02h)
-       Check Busy_n (loop)
-       DSLP (R07h==A5h)
-    */
-
     private suspend fun reset() {
         // Datasheet doesn't specify reset timing, this is just a guess
         gpio.setPin(resetLowPin, LOW)
@@ -88,6 +71,8 @@ class JD79667Driver(conf: Config) : IndexedSignDriver() {
 
     override suspend fun writePixels(pixels: ByteArray): Unit = withContext(Dispatchers.IO) {
         mutex.withLock {
+            // Based on the "Typical operating sequence" on page 33 of
+            // https://cdn-shop.adafruit.com/product-files/6414/P6414_C22271-001_datasheet_ZJY180384-0352AJH-E5______.pdf
             reset()
             busyWait()
 

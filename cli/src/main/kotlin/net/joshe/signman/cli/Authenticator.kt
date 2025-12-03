@@ -2,22 +2,24 @@ package net.joshe.signman.cli
 
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.Url
 import net.joshe.signman.client.Client
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 class Authenticator internal constructor(private val prompter: Prompter) {
     constructor() : this(ConsolePrompter())
 
-    suspend fun login(client: Client, url: Url, user: String? = null): Boolean {
-        var user: String? = user ?: url.user
-        var pass: String? = url.password
+    @OptIn(ExperimentalUuidApi::class)
+    suspend fun login(client: Client, uuid: Uuid, credentials: Credentials? = null, user: String? = null): Boolean {
+        var user: String? = user ?: credentials?.user
+        var pass: String? = credentials?.password
 
         while (true) {
             try {
                 if (user == null)
-                    client.authenticate(url)
+                    client.authenticate(uuid)
                 else
-                    client.login(url, user, pass)
+                    client.login(uuid, user, pass)
                 return true
             } catch (e: ClientRequestException) {
                 if (e.response.status != HttpStatusCode.Unauthorized)

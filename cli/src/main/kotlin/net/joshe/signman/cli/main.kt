@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalUuidApi::class)
+
 package net.joshe.signman.cli
 
 import com.github.ajalt.clikt.command.SuspendingCliktCommand
@@ -18,7 +20,6 @@ import com.github.ajalt.mordant.rendering.TextColors
 import com.github.ajalt.mordant.rendering.TextStyles
 import com.github.ajalt.mordant.terminal.Terminal
 import io.ktor.client.engine.java.Java
-import io.ktor.http.Url
 import io.ktor.http.parseUrl
 import net.joshe.signman.api.ColorType
 import net.joshe.signman.api.IndexedColor
@@ -28,6 +29,8 @@ import net.joshe.signman.api.StatusResponse
 import net.joshe.signman.api.UpdateRequest
 import net.joshe.signman.client.AuthStore
 import net.joshe.signman.client.Client
+import net.joshe.signman.client.JvmResolver
+import net.joshe.signman.client.HostCache
 import net.joshe.signman.client.getUserStateDir
 import net.joshe.signman.client.writeFile
 import java.io.File
@@ -35,9 +38,12 @@ import kotlin.math.max
 import kotlin.math.min
 import org.slf4j.simple.SimpleLogger
 import java.io.FileNotFoundException
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 private const val clientKey = "client"
-private const val urlKey = "url"
+private const val uuidKey = "uuid"
+private const val credentialsKey = "credentials"
 
 private fun StatusResponse.printTextColorized() {
     val terminal = Terminal()
@@ -82,39 +88,45 @@ private class SignmanCli : SuspendingCliktCommand() {
         setupLogging()
         val url = parseUrl(url)!!
         val auth = loadAuthStore()
-        val client = Client.create(Java, auth)
-        currentContext.findOrSetObject(urlKey) { url }
+        val client = Client.create(Java, auth, JvmResolver(), HostCache())
+        val response = client.checkUrl(url)
+            ?: throw PrintMessage("Failed to query server at $url", statusCode = 1, printError = true)
         currentContext.findOrSetObject(clientKey) { client }
-        if (currentContext.invokedSubcommand == null)
-            client.status(url).printTextColorized()
+        currentContext.findOrSetObject(uuidKey) { response.uuid }
+        currentContext.findOrSetObject(credentialsKey) { Credentials(url) }
+        if (currentContext.invokedSubcommand == null) {
+            client.status(response.uuid).printTextColorized()
+        }
     }
 }
 
 class Status : SuspendingCliktCommand() {
     private val client: Client by requireObject(clientKey)
-    private val url: Url by requireObject(urlKey)
+    private val uuid: Uuid by requireObject(uuidKey)
 
     override suspend fun run() {
-        client.status(url).printTextColorized()
+        client.status(uuid).printTextColorized()
     }
 }
 
 class Login : SuspendingCliktCommand() {
     private val client: Client by requireObject(clientKey)
-    private val url: Url by requireObject(urlKey)
+    private val uuid: Uuid by requireObject(uuidKey)
+    private val credentials: Credentials by requireObject(credentialsKey)
     private val username by argument().optional()
 
     override suspend fun run() {
-        if (Authenticator().login(client, url, user = username))
+        if (Authenticator().login(client, uuid, credentials = credentials, user = username))
             echo("Success!")
         else
-            throw PrintMessage("Failed to log in to $url", statusCode = 1, printError = true)
+            throw PrintMessage("Failed to log in to server", statusCode = 1, printError = true)
     }
 }
 
 class Update : SuspendingCliktCommand() {
     private val client: Client by requireObject(clientKey)
-    private val url: Url by requireObject(urlKey)
+    private val uuid: Uuid by requireObject(uuidKey)
+    private val credentials: Credentials by requireObject(credentialsKey)
     private val bg by option("-b" ,"--background", help="Background color")
     private val fg by option("-f" ,"--foreground", help="Foreground color")
     private val text by argument()
@@ -143,15 +155,15 @@ class Update : SuspendingCliktCommand() {
     }
 
     override suspend fun run() {
-        if (!Authenticator().login(client, url)) {
+        if (!Authenticator().login(client, uuid, credentials = credentials)) {
             echo("Failed to log in")
             return
         }
-        val info = client.status(url)
+        val info = client.status(uuid)
         val fgColor = parseColor(info, fg)
         val bgColor = parseColor(info, bg)
-        client.update(url, UpdateRequest(text = text, fg = fgColor, bg = bgColor))
-        client.status(url).printTextColorized()
+        client.update(uuid, UpdateRequest(text = text, fg = fgColor, bg = bgColor))
+        client.status(uuid).printTextColorized()
     }
 }
 

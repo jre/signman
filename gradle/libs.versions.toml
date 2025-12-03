@@ -7,6 +7,7 @@ ktor = "3.3.2"
 [libraries]
 ajalt-clikt = "com.github.ajalt.clikt:clikt:5.0.3"
 ajalt-mordant = "com.github.ajalt.mordant:mordant:3.0.2"
+asitplus-cidre = "at.asitplus:cidre:0.3.1"
 ktor-client-auth = { module = "io.ktor:ktor-client-auth", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-client-core = { module = "io.ktor:ktor-client-java", version.ref = "ktor" }

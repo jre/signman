@@ -16,15 +16,18 @@ java {
 
 dependencies {
     api(project(":api"))
+    api(libs.asitplus.cidre)
     api(libs.kotlinx.serialization.json)
     api(libs.ktor.client.core)
     implementation(project(":api"))
+    implementation(libs.asitplus.cidre)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.ktor.client.auth)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.serialization.kotlinx.json)
     testImplementation(kotlin("test"))
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 sourceSets {

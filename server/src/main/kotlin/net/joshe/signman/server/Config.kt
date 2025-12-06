@@ -20,8 +20,11 @@ import net.joshe.signman.api.RGBColor
 import net.joshe.signman.api.SignColor
 import net.joshe.signman.api.indexedColorTypeKey
 import net.joshe.signman.api.rgbColorTypeKey
+import net.joshe.signman.server.driver.BusDriver
+import net.joshe.signman.server.driver.GpioBusDriver
 import net.joshe.signman.server.driver.JD79667Driver
 import net.joshe.signman.server.driver.SignDriver
+import net.joshe.signman.server.driver.SpiBusDriver
 import java.awt.Font
 import java.awt.image.BufferedImage
 import java.io.File
@@ -93,27 +96,48 @@ data class Config(val server: ServerConfig, val sign: SignConfig, val auth: Auth
 
     @Serializable
     data class DriverConfig(
-        val name: Driver,
-        val spi: SpiDeviceConfig? = null,
-        val gpio: GpioDeviceConfig? = null)
+        val sign: SignDriverConfig,
+        val spi: SpiBusDriverConfig? = null,
+        val gpio: GpioBusDriverConfig? = null)
 
     @Serializable
-    data class SpiDeviceConfig(@Serializable(with = FileAsStringSerializer::class) val device: File)
+    sealed class SignDriverConfig { abstract suspend fun getInstance(config: Config): SignDriver }
 
     @Serializable
-    data class GpioDeviceConfig(
-        @Serializable(with = FileAsStringSerializer::class) val device: File,
-        @SerialName("dc-pin") val dcPin: Int? = null,
-        @SerialName("busy-pin") val busyPin: Int? = null,
-        @SerialName("rst-pin") val rstPin: Int? = null)
+    @SerialName("dummy")
+    data class DummyDriverConfig(val sign: String? = null) : SignDriverConfig() {
+        override suspend fun getInstance(config: Config) = object : SignDriver {
+            override suspend fun write(img: BufferedImage) {}
+        }
+    }
+
+    @Serializable
+    @SerialName("jd79667")
+    data class JD79667DriverConfig(
+        @SerialName("dc-pin") val isDataPin: Int,
+        @SerialName("busy-pin") val busyPin: Int,
+        @SerialName("rst-pin") val rstPin: Int) : SignDriverConfig() {
+        override suspend fun getInstance(config: Config): SignDriver = BusDriver.get(config).let { drv ->
+            JD79667Driver(config.driver?.sign as JD79667DriverConfig, drv as GpioBusDriver, drv as SpiBusDriver)
+        }
+    }
+
+    @Serializable
+    sealed class SpiBusDriverConfig
+
+    @Serializable
+    @SerialName("dummy")
+    data class DummySpiBusDriverConfig(val spi: String? = null) : SpiBusDriverConfig()
+
+    @Serializable
+    sealed class GpioBusDriverConfig
+
+    @Serializable
+    @SerialName("dummy")
+    class DummyGpioBusDriverConfig(val gpio: String? = null) : GpioBusDriverConfig()
 
     @Serializable
     enum class AuthType { @SerialName("file") FILE; }
-
-    enum class Driver(val constructor: (Config) -> SignDriver) {
-        DUMMY({ object : SignDriver { override suspend fun write(img: BufferedImage) {} }}),
-        JD79667(::JD79667Driver);
-    }
 
     private class FileAsStringSerializer : KSerializer<File> {
         override val descriptor = PrimitiveSerialDescriptor(kind = PrimitiveKind.STRING,

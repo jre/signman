@@ -73,10 +73,10 @@ class ServerTest {
         credentials.map { (u, p) -> "$u:plain:$p" }.joinToString("\n").toByteArray()))
 
     private suspend fun mkStateRgb(onUpdate: State.() -> Unit) = State.initialize(
-        renderer = Renderer(configRgb), fg = defFgRgb, bg = defBgRgb, onUpdate = onUpdate)
+        renderer = Renderer(configRgb, null), fg = defFgRgb, bg = defBgRgb, onUpdate = onUpdate)
 
     private suspend fun mkStateIdx(onUpdate: State.() -> Unit) = State.initialize(
-        renderer = Renderer(configIdx), fg = defFgIdx, bg = defBgIdx, onUpdate = onUpdate)
+        renderer = Renderer(configIdx, null), fg = defFgIdx, bg = defBgIdx, onUpdate = onUpdate)
 
     private fun IndexedColor.toRgb() = RGBColor(rgb)
 

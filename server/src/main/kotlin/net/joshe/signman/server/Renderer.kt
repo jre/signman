@@ -3,6 +3,7 @@ package net.joshe.signman.server
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import net.joshe.signman.api.SignColor
+import net.joshe.signman.server.driver.SignDriver
 import java.awt.Color
 import java.awt.Font
 import java.awt.Graphics2D
@@ -12,10 +13,9 @@ import java.io.ByteArrayOutputStream
 import java.lang.Integer.min
 import javax.imageio.ImageIO
 
-class Renderer(configuration: Config) {
+class Renderer(configuration: Config, private val driver: SignDriver?) {
     private val mutex = Mutex()
     private val conf = configuration.sign
-    private val driver = configuration.driver?.name?.constructor?.invoke(configuration)
     private val margin = min(conf.width, conf.height) / 10 // XXX
     private var lastFontSize = 12
 

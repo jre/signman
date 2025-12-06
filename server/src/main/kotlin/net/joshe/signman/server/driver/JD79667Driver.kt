@@ -6,20 +6,22 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import net.joshe.signman.server.Config
-import net.joshe.signman.server.driver.GpioDevice.PinState.HIGH
-import net.joshe.signman.server.driver.GpioDevice.PinState.LOW
-import org.slf4j.LoggerFactory
+import net.joshe.signman.server.DeviceException
+import net.joshe.signman.server.driver.GpioPinDirection.IN
+import net.joshe.signman.server.driver.GpioPinDirection.OUT
+import net.joshe.signman.server.driver.GpioPinState.ACTIVE
+import net.joshe.signman.server.driver.GpioPinState.INACTIVE
 
 // https://www.good-display.com/companyfile/1418.html
 
-class JD79667Driver(conf: Config) : IndexedSignDriver() {
-    private val log = LoggerFactory.getLogger(this::class.java)
+class JD79667Driver(private val conf: Config.JD79667DriverConfig, private val gpio: GpioBusDriver, private val spi: SpiBusDriver
+) : IndexedSignDriver() {
+    companion object {
+        // Datasheet says minimum clock cycle is 100ns (10MHz) for write and 150ns (6.6_MHz) for read
+        private const val SPI_HZ = 6000000
+    }
+
     private val mutex = Mutex()
-    private val spi = SpiDevice.get(conf.driver!!)
-    private val gpio = GpioDevice.get(conf.driver!!)
-    private val busyLowPin = conf.driver!!.gpio!!.busyPin!!
-    private val resetLowPin = conf.driver!!.gpio!!.rstPin!!
-    private val cmdLowPin = conf.driver!!.gpio!!.rstPin!!
     private var initialized = false
 
     enum class Cmd(val cmd: UByte, val param: UByte? = null) {
@@ -35,52 +37,57 @@ class JD79667Driver(conf: Config) : IndexedSignDriver() {
 
     private suspend fun reset() {
         // Datasheet doesn't specify reset timing, this is just a guess
-        gpio.setPin(resetLowPin, LOW)
+        gpio.gpioSet(conf.rstPin, ACTIVE)
         delay(timeMillis = 1)
-        gpio.setPin(resetLowPin, HIGH)
+        gpio.gpioSet(conf.rstPin, INACTIVE)
     }
 
     private suspend fun busyWait() {
-        while (gpio.getPin(busyLowPin) == LOW)
+        while (gpio.gpioGet(conf.busyPin) == ACTIVE)
             delay(timeMillis = 1)
     }
 
     private suspend fun transmitCmd(cmd: Cmd) {
-        gpio.setPin(cmdLowPin, LOW)
-        spi.write(cmd.cmd)
+        gpio.gpioSet(conf.isDataPin, INACTIVE)
+        spi.spiWrite(cmd.cmd)
         if (cmd.param != null) {
-            gpio.setPin(cmdLowPin, HIGH)
-            spi.write(cmd.param)
+            gpio.gpioSet(conf.isDataPin, ACTIVE)
+            spi.spiWrite(cmd.param)
         }
     }
 
     private suspend fun transmitBytes(cmd: Cmd, bytes: ByteArray) {
         transmitCmd(cmd)
-        gpio.setPin(cmdLowPin, HIGH)
-        spi.write(bytes)
+        gpio.gpioSet(conf.isDataPin, ACTIVE)
+        spi.spiWrite(bytes)
     }
 
-    private suspend fun checkRevision(): Boolean {
+    private suspend fun checkRevision() {
         transmitCmd(Cmd.REV)
-        val rev = spi.read(3)
-        if (rev.contentEquals(validRevision))
-            return true
-        log.error("Failed to read chip revision: expected ${validRevision.toHexString()} but found ${rev.toHexString()}")
-        return false
+        val rev = spi.spiRead(3)
+        if (!rev.contentEquals(validRevision))
+            throw DeviceException("Failed to read JD79667 chip revision: expected ${
+                validRevision.toHexString()} but found ${rev.toHexString()}")
     }
 
     override suspend fun writePixels(pixels: ByteArray): Unit = withContext(Dispatchers.IO) {
         mutex.withLock {
+            if (!initialized) {
+                gpio.gpioSetup(mapOf(
+                    conf.isDataPin to GpioPinConfig(direction = OUT, initial = INACTIVE),
+                    conf.rstPin to GpioPinConfig(direction = OUT, initial = ACTIVE, activeLow = true),
+                    conf.busyPin to GpioPinConfig(direction = IN, initial = ACTIVE, activeLow = true)))
+                spi.spiSetup(mode = 0, lsbFirst = false, hz = SPI_HZ, halfDuplex = true)
+            }
+
             // Based on the "Typical operating sequence" on page 33 of
             // https://cdn-shop.adafruit.com/product-files/6414/P6414_C22271-001_datasheet_ZJY180384-0352AJH-E5______.pdf
             reset()
             busyWait()
 
             if (!initialized) {
-                if (checkRevision())
-                    initialized = true
-                else
-                    return@withLock
+                checkRevision()
+                initialized = true
             }
 
             transmitBytes(Cmd.DTM, pixels)

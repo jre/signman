@@ -50,17 +50,21 @@ sign.color.palette.2 = \tffff00 \t Yellow \t
 sign.color.palette.3 = \t ff0000\t  Red,  I guess?\t
 sign.color.foreground = 0
 sign.color.background = 1
-driver.name = DUMMY
-driver.spi.device = /dev/fake/spi
-driver.gpio.device = /dev/fake/gpio
-driver.gpio.dc-pin = 37"""
+driver.sign.type = dummy
+driver.sign.sign = foo
+driver.spi.type = dummy
+driver.spi.spi = bar
+driver.gpio.type = dummy
+driver.gpio.gpio = baz"""
 
     private val out2 = """auth.path=/etc/signman.passwd
 auth.type=file
-driver.gpio.dc-pin=37
-driver.gpio.device=/dev/fake/gpio
-driver.name=DUMMY
-driver.spi.device=/dev/fake/spi
+driver.gpio.gpio=baz
+driver.gpio.type=dummy
+driver.sign.sign=foo
+driver.sign.type=dummy
+driver.spi.spi=bar
+driver.spi.type=dummy
 name=Config Test
 server.directory=/var/signman
 server.port=8080
@@ -114,9 +118,8 @@ sign.width=340"""
     @Test fun testParse2Font() { assertEquals("Sans", p(in2).sign.font) }
     @Test fun testParse2AuthType() { assertEquals(Config.AuthType.FILE, p(in2).auth.type) }
     @Test fun testParse2AuthPath() { assertEquals(File("/etc/signman.passwd"), p(in2).auth.path) }
-    @Test fun testParse2ADriver() { assertEquals(Config.Driver.DUMMY, p(in2).driver?.name) }
-    @Test fun testParse2ASpi() { assertEquals(File("/dev/fake/spi"), p(in2).driver?.spi?.device) }
-    @Test fun testParse2ASpiParam() { assertEquals(37, p(in2).driver?.gpio?.dcPin) }
-    @Test fun testParse2AGpio() { assertEquals(File("/dev/fake/gpio"), p(in2).driver?.gpio?.device) }
+    @Test fun testParse2ASign() { assertEquals("foo", (p(in2).driver?.sign as Config.DummyDriverConfig).sign) }
+    @Test fun testParse2ASpi() { assertEquals("bar", (p(in2).driver?.spi as Config.DummySpiBusDriverConfig).spi) }
+    @Test fun testParse2AGpio() { assertEquals("baz", (p(in2).driver?.gpio as Config.DummyGpioBusDriverConfig).gpio) }
     @Test fun testOutput2() { assertEquals(out2, output(p(in2))) }
 }

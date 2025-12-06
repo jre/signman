@@ -27,11 +27,11 @@ internal class StateTest {
 
     private fun load(f: State.() -> Unit = {}) = runBlocking {
         State.load(ByteArrayInputStream(jsonText.toByteArray()),
-            Renderer(conf), f)
+            Renderer(conf, null), f)
     }
 
     private fun mk(f: (State.() -> Unit) = {}) = runBlocking {
-        State.initialize(Renderer(conf), text = "TEST", fg = fg, bg = bg, onUpdate = f)
+        State.initialize(Renderer(conf, null), text = "TEST", fg = fg, bg = bg, onUpdate = f)
     }
 
     @Test fun testStateLoadText() = assertEquals(mk().text, load().text)

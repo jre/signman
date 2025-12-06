@@ -7,6 +7,7 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.file
+import net.joshe.signman.server.driver.BusDriver
 import org.slf4j.simple.SimpleLogger
 import java.io.File
 import java.io.OutputStream
@@ -48,7 +49,7 @@ class SignmanServer : SuspendingCliktCommand() {
 
     private suspend fun loadState(config: Config): State {
         val file = File(config.server.directory, "state.json")
-        val renderer = Renderer(config)
+        val renderer = Renderer(config, config.driver?.sign?.getInstance(config))
         return try {
             file.inputStream().use { input ->
                 State.load(input, renderer) { writeFile(file) { store(it) } }

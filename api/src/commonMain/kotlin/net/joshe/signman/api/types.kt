@@ -129,7 +129,11 @@ class BareSignColorJsonSerializer(private val colors: List<IndexedColor>?, allow
     override fun transformDeserialize(element: JsonElement) = element.jsonPrimitive.let { elm ->
         if (elm.isString)
             names[elm.content.lowercase()]?.let { Json.encodeToJsonElement<SignColor>(it) }
-                ?: Json.encodeToJsonElement<SignColor>(RGBColor(RGB.fromHexString(elm.content)))
+                ?: try {
+                    RGB.fromHexString(elm.content)
+                } catch (e: NumberFormatException) {
+                    throw IllegalStateException(e.message)
+                }.let { Json.encodeToJsonElement<SignColor>(RGBColor(it)) }
         else
             colors!![elm.int].let { Json.encodeToJsonElement<SignColor>(it) }
     }

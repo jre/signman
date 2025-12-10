@@ -39,13 +39,19 @@ internal class TypesTest {
             assertEquals(colors8Int[idx], colors8[idx].rgb.toInt())
         }
 
-        assertThrows<Exception> { RGB.fromHexString("") }
-        assertThrows<Exception> { RGB.fromHexString("123") }
-        assertThrows<Exception> { RGB.fromHexString("00000") }
-        assertThrows<Exception> { RGB.fromHexString("0000000") }
-        assertThrows<Exception> { RGB.fromHexString("00000g") }
-        assertThrows<Exception> { RGB.fromHexString("000000 ") }
-        assertThrows<Exception> { RGB.fromHexString(" 000000 ") }
+        assertThrows<IllegalStateException> { RGB.fromHexString("") }
+        assertThrows<IllegalStateException> { RGB.fromHexString("123") }
+        assertThrows<IllegalStateException> { RGB.fromHexString("00000") }
+        assertThrows<IllegalStateException> { RGB.fromHexString("0000000") }
+        assertThrows<NumberFormatException> { RGB.fromHexString("00000g") }
+        assertThrows<IllegalStateException> { RGB.fromHexString("000000 ") }
+        assertThrows<IllegalStateException> { RGB.fromHexString(" 000000 ") }
+        assertThrows<IllegalStateException> { RGB(-1, 0, 0) }
+        assertThrows<IllegalStateException> { RGB(256, 0, 0) }
+        assertThrows<IllegalStateException> { RGB(0, -1, 0) }
+        assertThrows<IllegalStateException> { RGB(0, 256, 0) }
+        assertThrows<IllegalStateException> { RGB(0, 0, -1) }
+        assertThrows<IllegalStateException> { RGB(0, 0, 256) }
     }
 
     @Test fun testColorTypeSerializer() {
@@ -65,6 +71,42 @@ internal class TypesTest {
         assertEquals(purple, j.decodeFromString(purpleJson))
         assertEquals(orangeJson, j.encodeToString(orange))
         assertEquals(purpleJson, j.encodeToString(purple))
+    }
+
+    @Test fun testIndexedColorListJsonSerializer() {
+        val serializer = IndexedColorListJsonSerializer()
+        val goodJson1 = """[["${colors8Hex[0]}","${colors8[0].name}"],["${colors8Hex[1]}","${colors8[1].name}"]]"""
+        val goodList1 = listOf(colors8[0], colors8[1])
+        val badJson1 = """[["${colors8Hex[3]}"]]"""
+        val badJson2 = """[["${colors8Hex[3]}","Gamma","Delta"]]"""
+
+        assertEquals(goodList1, Json.decodeFromString(serializer, goodJson1))
+        assertEquals(goodJson1, Json.encodeToString(serializer, goodList1))
+        assertThrows<IllegalStateException> { Json.encodeToString(serializer, listOf(colors8[1])) }
+        assertThrows<IllegalStateException> { Json.decodeFromString(IndexedColorListJsonSerializer(), badJson1) }
+        assertThrows<IllegalStateException> { Json.decodeFromString(IndexedColorListJsonSerializer(), badJson2) }
+    }
+
+    @Test fun testBareSignColorJsonSerializer() {
+        val serializer = BareSignColorJsonSerializer(colors8)
+        val nameSerializer = BareSignColorJsonSerializer(colors8, allowNames = true)
+        for (idx in colors8.indices) {
+            val idxColor = colors8[idx]
+            val idxStr = idxColor.index.toString()
+            assertEquals(idxStr, Json.encodeToString(serializer, idxColor))
+            assertEquals(idxColor, Json.decodeFromString(serializer, idxStr))
+            val nameStr = """"${idxColor.name}""""
+            assertThrows<IllegalStateException> { Json.decodeFromString(serializer, nameStr) }
+            assertThrows<IllegalStateException> { Json.decodeFromString(serializer, """"nonsense"""") }
+            assertEquals(idxColor, Json.decodeFromString(nameSerializer, nameStr))
+            assertEquals(idxColor, Json.decodeFromString(nameSerializer, nameStr.uppercase()))
+            assertEquals(idxColor, Json.decodeFromString(nameSerializer, nameStr.lowercase()))
+            val rgbColor = RGBColor(idxColor.rgb)
+            val rgbStr = """"${colors8Hex[idx]}""""
+            assertEquals(rgbStr, Json.encodeToString(serializer, rgbColor))
+            assertEquals(rgbColor, Json.decodeFromString(serializer, rgbStr))
+            assertEquals(rgbColor, Json.decodeFromString(nameSerializer, rgbStr))
+        }
     }
 
     @Test fun testQueryResponseSerializer() {
@@ -125,19 +167,17 @@ internal class TypesTest {
         assertEquals(jsonText, j.encodeToString(expected))
     }
 
-    @Test fun testUpdateRequestIndexed() {
-        val reqJson = """{"text":"Cool beans","bg":7,"fg":4}"""
-        val req = UpdateRequest("Cool beans", colors8[7], colors8[4])
-
-        assertEquals(req, j.decodeFromString(reqJson))
-        assertEquals(reqJson, j.encodeToString(req))
-    }
-
-    @Test fun testUpdateRequestRGB() {
-        val reqJson = """{"text":"hot","bg":"${colors8Hex[7]}","fg":"${colors8Hex[1]}"}"""
-        val req = UpdateRequest("hot", RGBColor(colors8[7].rgb), RGBColor(colors8[1].rgb))
-
-        assertEquals(req, j.decodeFromString(reqJson))
-        assertEquals(reqJson, j.encodeToString(req))
+    @Test fun testUpdateRequest() {
+        for ((json, req) in listOf(
+            Pair(("""{"text":"rad"}"""), UpdateRequest("rad")),
+            Pair("""{"text":"Cool beans","bg":7,"fg":4}""",
+                UpdateRequest("Cool beans", colors8[7], colors8[4])),
+            Pair("""{"text":"hot","bg":"${colors8Hex[7]}","fg":"${colors8Hex[1]}"}""",
+                UpdateRequest("hot", RGBColor(colors8[7].rgb), RGBColor(colors8[1].rgb))),
+            Pair("""{"text":"bright","fg":"${colors8Hex[7]}"}""", UpdateRequest("bright", fg=RGBColor(colors8[7].rgb))),
+            Pair("""{"text":"Moose?","bg":2}""", UpdateRequest("Moose?", bg=colors8[2])))) {
+            assertEquals(req, j.decodeFromString(json))
+            assertEquals(json, j.encodeToString(req))
+        }
     }
 }

@@ -1,5 +1,6 @@
 package net.joshe.signman.server
 
+import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,10 +30,14 @@ internal class AuthTest {
     @Test fun testHA1Digest() {
         val auth = Auth.loadStream(ByteArrayInputStream(passwdText.toByteArray()))
 
-        assertEquals(get(auth, "alice", uuid1), ha1Map["alice"])
-        assertEquals(get(auth, "bob", uuid1), ha1Map["bob"])
-        assertEquals(get(auth, "charlie", uuid2), ha1Map["charlie"])
-        assertEquals(get(auth, "denise", uuid2), ha1Map["denise"])
+        assertEquals(ha1Map["alice"], get(auth, "alice", uuid1))
+        assertEquals(ha1Map["bob"], get(auth, "bob", uuid1))
+        assertEquals(ha1Map["charlie"], get(auth, "charlie", uuid2))
+        assertEquals(ha1Map["denise"], get(auth, "denise", uuid2))
         assertNull(get(auth, "nobody", uuid1))
+    }
+
+    @Test fun testBad() {
+        assertThrows<IllegalStateException> { Auth.loadStream(ByteArrayInputStream("foo:garbage:bar".toByteArray())) }
     }
 }

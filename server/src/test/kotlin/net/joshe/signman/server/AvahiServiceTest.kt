@@ -2,6 +2,7 @@ package net.joshe.signman.server
 
 import net.joshe.signman.api.RGB
 import net.joshe.signman.api.RGBColor
+import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -17,6 +18,8 @@ class AvahiServiceTest {
             color = Config.RGBColorConfig(RGBColor(RGB(0,0,0)), background = RGBColor(RGB(0,0,0)))),
         auth = Config.AuthConfig(Config.AuthType.FILE, File("/"))))
 
+    private fun xml(avahi: AvahiService) = ByteArrayOutputStream().also { avahi.store(it) }.toString()
+
     @Test fun testXMLSimple() {
         val uuid = "01234567-89ab-cdef-0123-456789abcdef"
         val expect = """<?xml version="1.0"?>
@@ -29,8 +32,8 @@ class AvahiServiceTest {
         <txt-record>uuid=$uuid</txt-record>
     </service>
 </service-group>"""
-        assertEquals(expect, mk("Testy McTesterson", 1234,
-            Uuid.parse(uuid)).xml)
+        assertEquals(expect, xml(mk("Testy McTesterson", 1234,
+            Uuid.parse(uuid))))
     }
 
     @Test fun testXMLEscape() {
@@ -45,7 +48,7 @@ class AvahiServiceTest {
         <txt-record>uuid=$uuid</txt-record>
     </service>
 </service-group>"""
-        assertEquals(expect, mk("`~!@#$%^&*()_+{}|:\"<>?-=[]\\;',./", 1,
-            Uuid.parse(uuid)).xml)
+        assertEquals(expect, xml(mk("`~!@#$%^&*()_+{}|:\"<>?-=[]\\;',./", 1,
+            Uuid.parse(uuid))))
     }
 }

@@ -25,6 +25,10 @@ dependencies {
     implementation(libs.ktor.server.netty)
     implementation(libs.slf4j.simple)
     testImplementation(kotlin("test"))
+    testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.ktor.client.auth)
+    testImplementation(libs.ktor.client.content.negotiation)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 tasks.test {

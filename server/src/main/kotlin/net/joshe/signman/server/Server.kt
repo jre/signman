@@ -7,6 +7,7 @@ import io.ktor.http.content.CachingOptions
 import io.ktor.http.content.EntityTagVersion
 import io.ktor.http.content.LastModifiedVersion
 import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.authenticate
@@ -54,12 +55,16 @@ class Server(private val config: Config, private val state: State, private val a
     private val maybeCacheable = CachingOptions(CacheControl.NoCache(CacheControl.Visibility.Public))
     private val cacheableKey = AttributeKey<Pair<Instant,String?>>("MaybeCacheableLastModifiedInstant")
 
-    suspend fun run() {
+    suspend fun run() = runCustom { module ->
+        embeddedServer(Netty, port = config.server.port, module = module).start(wait = true)
+    }
+
+    internal suspend fun runCustom(block: (suspend Application.() -> Unit) -> Unit) {
         val updaterJob = CoroutineScope(currentCoroutineContext()).launch {
             updater.collect(::updateCollector)
         }
 
-        embeddedServer(Netty, port = config.server.port) {
+        block {
             install(Authentication) {
                 digest("auth-digest") {
                     algorithmName = auth.digestAlgorithm
@@ -109,7 +114,7 @@ class Server(private val config: Config, private val state: State, private val a
                     }
                 }
             }
-        }.start(wait = true)
+        }
 
         updaterJob.cancel()
     }

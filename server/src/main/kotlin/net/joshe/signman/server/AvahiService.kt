@@ -10,7 +10,7 @@ import kotlin.uuid.Uuid
 class AvahiService(conf: Config, uuid: Uuid) {
     private val escapes = mapOf('<' to "&lt;", '>' to "&gt;", '&' to "&amp;", '\'' to "&apos;", '"' to "&quot;")
 
-    val xml = """
+    private val xml = """
         <?xml version="1.0"?>
         <!DOCTYPE service-group SYSTEM "avahi-service.dtd">
         <service-group>

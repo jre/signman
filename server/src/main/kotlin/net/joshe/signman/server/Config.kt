@@ -118,7 +118,7 @@ data class Config(val server: ServerConfig, val sign: SignConfig, val auth: Auth
         @SerialName("busy-pin") val busyPin: Int,
         @SerialName("rst-pin") val rstPin: Int) : SignDriverConfig() {
         override suspend fun getInstance(config: Config): SignDriver = BusDriver.get(config).let { drv ->
-            JD79667Driver(config.driver?.sign as JD79667DriverConfig, drv as GpioBusDriver, drv as SpiBusDriver)
+            JD79667Driver(config, drv as GpioBusDriver, drv as SpiBusDriver)
         }
     }
 
@@ -130,11 +130,21 @@ data class Config(val server: ServerConfig, val sign: SignConfig, val auth: Auth
     data class DummySpiBusDriverConfig(val spi: String? = null) : SpiBusDriverConfig()
 
     @Serializable
+    @SerialName("linux")
+    data class LinuxSpiBusDriverConfig(
+        @Serializable(with = FileAsStringSerializer::class) val device: File) : SpiBusDriverConfig()
+
+    @Serializable
     sealed class GpioBusDriverConfig
 
     @Serializable
     @SerialName("dummy")
     class DummyGpioBusDriverConfig(val gpio: String? = null) : GpioBusDriverConfig()
+
+    @Serializable
+    @SerialName("linux")
+    data class LinuxGpioBusDriverConfig(
+        @Serializable(with = FileAsStringSerializer::class) val device: File) : GpioBusDriverConfig()
 
     @Serializable
     enum class AuthType { @SerialName("file") FILE; }

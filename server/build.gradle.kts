@@ -39,6 +39,23 @@ application {
     mainClass.set("${group}.${project.name}.MainKt")
 }
 
+tasks.compileJava {
+    options.headerOutputDirectory.set(File(projectDir, "native/generated"))
+}
+
+distributions {
+    create("nativeSource") {
+        distributionBaseName = "${rootProject.name}-${project.name}-native"
+        contents {
+            from("native")
+            exclude("**/.so")
+        }
+    }
+}
+
+tasks.named("nativeSourceDistTar") { dependsOn(tasks.compileJava) }
+tasks.named("nativeSourceDistZip") { dependsOn(tasks.compileJava) }
+
 tasks.withType<Jar> {
     manifest { attributes["Main-Class"] = application.mainClass }
 }

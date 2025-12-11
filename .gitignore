@@ -2,3 +2,5 @@
 /.idea/
 /local.properties
 build
+/server/native/generated/
+/server/native/*.so

@@ -21,4 +21,4 @@ plugins {
 }
 
 
-include(":api", ":cli", ":client", ":server")
+include(":api", ":cli", ":client", ":server" ,":zeroconf")

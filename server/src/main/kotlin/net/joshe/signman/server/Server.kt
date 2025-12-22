@@ -8,6 +8,7 @@ import io.ktor.http.content.EntityTagVersion
 import io.ktor.http.content.LastModifiedVersion
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
+import io.ktor.server.application.ServerReady
 import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.authenticate
@@ -36,31 +37,53 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import net.joshe.signman.api.QueryResponse
 import net.joshe.signman.api.StatusResponse
 import net.joshe.signman.api.UpdateRequest
 import net.joshe.signman.api.buildSerializersModule
 import net.joshe.signman.api.toHttpAuthenticationRealm
+import net.joshe.signman.zeroconf.ServicePublisher
 import java.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
-class Server(private val config: Config, private val state: State, private val auth: Auth, private val uuid: Uuid) {
+class Server(private val config: Config,
+             private val state: State,
+             private val auth: Auth,
+             private val uuid: Uuid,
+             private val publisher: ServicePublisher) {
     private val updater = MutableStateFlow<UpdateRequest?>(null)
 
     private val startedInst = Instant.now()
     private val neverCacheable = CachingOptions(CacheControl.NoStore(CacheControl.Visibility.Private))
     private val maybeCacheable = CachingOptions(CacheControl.NoCache(CacheControl.Visibility.Public))
     private val cacheableKey = AttributeKey<Pair<Instant,String?>>("MaybeCacheableLastModifiedInstant")
+    private var scope: CoroutineScope? = null
+
+    private suspend fun getScope(): CoroutineScope {
+        if (scope == null)
+            scope = CoroutineScope(currentCoroutineContext())
+        return scope!!
+    }
 
     suspend fun run() = runCustom { module ->
-        embeddedServer(Netty, port = config.server.port, module = module).start(wait = true)
+        embeddedServer(Netty, port = config.server.port) {
+            module(this)
+            monitor.subscribe(ServerReady) {
+                Runtime.getRuntime().addShutdownHook(Thread {
+                    @Suppress("RunBlockingInSuspendFunction")
+                    runBlocking { publisher.stop() }
+                })
+                publisher.start()
+            }
+        }.start(wait = true)
     }
 
     internal suspend fun runCustom(block: (suspend Application.() -> Unit) -> Unit) {
-        val updaterJob = CoroutineScope(currentCoroutineContext()).launch {
+        val updaterJob = getScope().launch {
             updater.collect(::updateCollector)
         }
 

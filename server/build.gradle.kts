@@ -11,6 +11,7 @@ kotlin {
 
 dependencies {
     implementation(project(":api"))
+    implementation(project(":zeroconf"))
     implementation(libs.ajalt.clikt)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.serialization.properties)

@@ -2,12 +2,20 @@ package net.joshe.signman.server
 
 import com.github.ajalt.clikt.command.SuspendingCliktCommand
 import com.github.ajalt.clikt.command.main
+import com.github.ajalt.clikt.core.context
+import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.clikt.parameters.options.counted
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.file
-import net.joshe.signman.server.driver.BusDriver
+import com.github.ajalt.mordant.rendering.AnsiLevel
+import com.github.ajalt.mordant.terminal.Terminal
+import kotlinx.coroutines.Dispatchers
+import net.joshe.signman.api.dnssdService
+import net.joshe.signman.api.dnssdUuidKey
+import net.joshe.signman.zeroconf.ServicePublisher
+import net.joshe.signman.zeroconf.avahi.AvahiPublisherBuilder
 import org.slf4j.simple.SimpleLogger
 import java.io.File
 import java.io.OutputStream
@@ -18,11 +26,15 @@ import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
 class SignmanServer : SuspendingCliktCommand() {
+    init {
+        context { terminal = Terminal(ansiLevel = AnsiLevel.NONE) }
+    }
+
     private val configPath by option("-c", "--conf", help="Path to configuration file")
         .file().default(File("/etc/signman.conf"))
     private val quieter by option("-q", "--quiet", help="Lower the output verbosity level").counted()
     private val louder by option("-v", "--verbose", help="Raise the output verbosity level").counted()
-    private val dumpAvahiService by option(help="Output an Avahi service file and exit").flag()
+    private val noPublish by option("--no-publish", help="Don't publish the server via zeroconf").flag(default = false)
 
     private fun setupLogging() {
         val levels = listOf("trace", "debug", "info", "warn", "error", "off")
@@ -61,6 +73,16 @@ class SignmanServer : SuspendingCliktCommand() {
 
     private fun loadAuth(config: Config) = Auth.load(config.auth)
 
+    private fun createPublisher(config: Config, uuid: Uuid)
+    = if (!noPublish)
+        AvahiPublisherBuilder(Dispatchers.IO, name = config.name, type = dnssdService,
+            port = config.server.port, params = mapOf(dnssdUuidKey to uuid.toString())).build()
+    else
+        object : ServicePublisher {
+            override fun start() {}
+            override suspend fun stop() {}
+        }
+
     private fun writeFile(file: File, body: (OutputStream) -> Unit) {
         val tmp = File.createTempFile("tmp", null, file.absoluteFile.parentFile)
         tmp.outputStream().use(body)
@@ -71,13 +93,10 @@ class SignmanServer : SuspendingCliktCommand() {
         setupLogging()
         val config = loadConfig()
         val uuid = loadUuid(config)
-        if (dumpAvahiService) {
-            AvahiService(config, uuid).store(System.out)
-            return
-        }
         val state = loadState(config)
         val auth = loadAuth(config)
-        Server(config, state, auth, uuid).run()
+        val publisher = createPublisher(config, uuid)
+        Server(config, state, auth, uuid, publisher).run()
     }
 }
 

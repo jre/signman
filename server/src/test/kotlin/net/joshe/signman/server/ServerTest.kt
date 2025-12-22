@@ -25,6 +25,7 @@ import net.joshe.signman.api.SignColor
 import net.joshe.signman.api.StatusResponse
 import net.joshe.signman.api.UpdateRequest
 import net.joshe.signman.api.buildSerializersModule
+import net.joshe.signman.zeroconf.ServicePublisher
 import java.io.ByteArrayInputStream
 import java.io.File
 import kotlin.test.Test
@@ -71,6 +72,10 @@ class ServerTest {
     private val credentials = mapOf("alice" to "apple", "bob" to "banana")
     private val auth = Auth.loadStream(ByteArrayInputStream(
         credentials.map { (u, p) -> "$u:plain:$p" }.joinToString("\n").toByteArray()))
+    private val publisher = object : ServicePublisher {
+        override fun start() {}
+        override suspend fun stop() {}
+    }
 
     private suspend fun mkStateRgb(onUpdate: State.() -> Unit) = State.initialize(
         renderer = Renderer(configRgb, null), fg = defFgRgb, bg = defBgRgb, onUpdate = onUpdate)
@@ -112,7 +117,7 @@ class ServerTest {
 
     private fun mainTests(config: Config, uuid: Uuid, user: String, mkState: suspend (State.() -> Unit) -> State) = runTest {
         var updated = 0
-        Server(config, mkState { updated++ }, auth, uuid).runCustom { module ->
+        Server(config, mkState { updated++ }, auth, uuid, publisher).runCustom { module ->
             testApplication {
                 application(module)
                 client = mkClient(user)

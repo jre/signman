@@ -7,6 +7,7 @@ import io.ktor.http.appendPathSegments
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import net.joshe.signman.zeroconf.Service
 
 @Serializable
 data class HostInfo(
@@ -21,6 +22,8 @@ data class HostInfo(
 
     constructor(hostname: String, address: IP, port: Int) : this(hostname = hostname, address = address, port = port,
         addressSerializationKludge = address.toString())
+
+    constructor(service: Service) : this(hostname = service.hostname, address = service.address, port = service.port)
 
     fun toUrl(path: String) = URLBuilder(protocol = URLProtocol.HTTP, host = address.toString(), port = port)
         .appendPathSegments(path).build()

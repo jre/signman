@@ -20,6 +20,7 @@ dependencies {
     api(libs.kotlinx.serialization.json)
     api(libs.ktor.client.core)
     implementation(project(":api"))
+    implementation(project(":zeroconf"))
     implementation(libs.asitplus.cidre)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.ktor.client.auth)
@@ -30,6 +31,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
 }
 
+@Suppress("UNUSED")
 sourceSets {
     val main by getting {
         kotlin.srcDirs("src/commonMain/kotlin", "src/jvmMain/kotlin")

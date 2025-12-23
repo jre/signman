@@ -25,6 +25,9 @@ import net.joshe.signman.api.QueryResponse
 import net.joshe.signman.api.StatusResponse
 import net.joshe.signman.api.UpdateRequest
 import net.joshe.signman.api.buildSerializersModule
+import net.joshe.signman.api.dnssdUuidKey
+import net.joshe.signman.zeroconf.Service
+import java.lang.Exception
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -62,6 +65,13 @@ class Client internal constructor(private val client: HttpClient,
         .let { connections ->
             servers.testAddresses(scope, null, connections, true, ::testConnection)
         }
+
+    suspend fun checkServices(services: Set<Service>)
+    = services.groupBy { service ->
+        try { Uuid.parse(service.params.getValue(dnssdUuidKey)) } catch (_: Exception) { null }
+    }.filterKeys { it != null }.map { (uuid, svc) ->
+        servers.testAddresses(scope, uuid, svc.map(::HostInfo), true, ::testConnection)
+    }.filterNotNull()
 
     suspend fun authenticate(uuid: Uuid) { get(uuid, "/api/authenticate") }
 

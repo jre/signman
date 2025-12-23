@@ -12,6 +12,7 @@ kotlin {
 dependencies {
     implementation(project(":api"))
     implementation(project(":client"))
+    implementation(project(":zeroconf"))
     implementation(libs.ajalt.clikt)
     implementation(libs.ajalt.mordant)
     implementation(libs.kotlinx.serialization.json)

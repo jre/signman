@@ -5,17 +5,11 @@ import net.joshe.signman.api.RGB
 import net.joshe.signman.api.RGBColor
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
 internal class StateTest {
-    private val conf = Config(
-        server = Config.ServerConfig(directory = File("/nonsense")),
-        sign = Config.SignConfig(width = 200, height = 100,
-            color = Config.RGBColorConfig(RGBColor(RGB(0,0,0)), RGBColor(RGB(0,0,0)))),
-        auth = Config.AuthConfig(Config.AuthType.FILE, File("/nonexistent")))
     private val fg = RGBColor(RGB(9, 9, 9))
     private val bg = RGBColor(RGB(0, 0, 255))
     private val otherFg = RGBColor(RGB(16, 16, 16))
@@ -25,61 +19,64 @@ internal class StateTest {
             """"bg":{"type":"rgb","rgb":"${bg.rgb.toHexString()}"},""" +
             """"fg":{"type":"rgb","rgb":"${fg.rgb.toHexString()}"}}"""
 
-    private fun load(f: State.() -> Unit = {}) = runBlocking {
-        State.load(ByteArrayInputStream(jsonText.toByteArray()),
-            Renderer(conf, null), f)
+    private fun load(f: State.(State.Snapshot) -> Unit = {}) = runBlocking {
+        State.load(ByteArrayInputStream(jsonText.toByteArray()), f)
     }
 
-    private fun mk(f: (State.() -> Unit) = {}) = runBlocking {
-        State.initialize(Renderer(conf, null), text = "TEST", fg = fg, bg = bg, onUpdate = f)
+    private fun mk(f: (State.(State.Snapshot) -> Unit) = {}) = runBlocking {
+        State.initialize(text = "TEST", fg = fg, bg = bg, onUpdate = f)
     }
 
-    @Test fun testStateLoadText() = assertEquals(mk().text, load().text)
-    @Test fun testStateLoadBg() = assertEquals(mk().bg, load().bg)
-    @Test fun testStateLoadFg() = assertEquals(mk().fg, load().fg)
-    @Test fun testStatePngETag() = assertEquals(mk().pngETag, load().pngETag)
+    @Test fun testStateLoad() = assertEquals(mk().snapshot, load().snapshot)
     @Test fun testStateStore() = assertEquals(jsonText,
         ByteArrayOutputStream().also { mk().store(it) }.toString())
 
     @Test fun testStateUpdate(): Unit = runBlocking {
         var updateCount = 0
-        val actual = mk { updateCount++ }
-        val default = mk()
+        var lastSnap: State.Snapshot
+        val actual = mk {
+            lastSnap = it
+            updateCount++
+        }
+        lastSnap = actual.snapshot
 
         assertEquals(0, updateCount)
 
-        var oldMod = actual.lastModified
-        actual.update("changed", otherBg, otherFg)
+        val up1 = actual.update("changed", otherBg, otherFg)
         assertEquals(1, updateCount)
-        assert(oldMod < actual.lastModified) { "$oldMod expected to be < ${actual.lastModified}" }
-        assertNotEquals(default.pngETag, actual.pngETag)
-        assertEquals("changed", actual.text)
-        assertEquals(otherFg, actual.fg)
-        assertEquals(otherBg, actual.bg)
+        assertEquals(State.Snapshot("changed", fg = otherFg, bg = otherBg), up1)
+        assertEquals(up1, lastSnap)
+        assertEquals(up1, actual.snapshot)
 
-        oldMod = actual.lastModified
-        actual.update("TEST", bg, fg)
+        val up2 = actual.update("TEST", bg, fg)
         assertEquals(2, updateCount)
-        assert(oldMod < actual.lastModified) { "$oldMod expected to be < ${actual.lastModified}" }
-        assertEquals(default.pngETag, actual.pngETag)
-        assertEquals(default.text, actual.text)
-        assertEquals(default.fg, actual.fg)
-        assertEquals(default.bg, actual.bg)
+        assertEquals(State.Snapshot("TEST", fg = fg, bg = bg), up2)
+        assertEquals(up2, lastSnap)
+        assertEquals(up2, actual.snapshot)
     }
 
     @Test fun testStateErase(): Unit = runBlocking {
+        val black = RGBColor(RGB(0, 0, 0))
+        val white = RGBColor(RGB(255, 255, 255))
         var updateCount = 0
-        val actual = load { updateCount++ }
-        val oldMod = actual.lastModified
-        val oldTag = actual.pngETag
+        var lastSnap: State.Snapshot
+        val actual = load {
+            lastSnap = it
+            updateCount++
+        }
+        lastSnap = actual.snapshot
 
+        val firstUpdate = actual.snapshot
         assertEquals(0, updateCount)
-        actual.erase()
+        val res = actual.erase()
         assertEquals(1, updateCount)
-        assert(oldMod < actual.lastModified) { "$oldMod expected to be < ${actual.lastModified}" }
-        assert(oldTag != actual.pngETag) { "$oldTag expected to be != ${actual.pngETag}" }
-        assertEquals("", actual.text)
-        assertEquals(RGBColor(RGB(0, 0, 0)), actual.fg)
-        assertEquals(RGBColor(RGB(255, 255, 255)), actual.bg)
+        assertNotEquals(firstUpdate, lastSnap)
+        assertEquals(State.Snapshot("", fg = black, bg = white), res)
+        assertEquals(res, lastSnap)
+        assertEquals(res, actual.snapshot)
+    }
+
+    @Test fun testSnapshotETag() {
+        assertEquals("2o2j731", State.Snapshot("test", bg, fg).eTag())
     }
 }

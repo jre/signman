@@ -11,7 +11,13 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.file
 import com.github.ajalt.mordant.rendering.AnsiLevel
 import com.github.ajalt.mordant.terminal.Terminal
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import net.joshe.signman.api.dnssdService
 import net.joshe.signman.api.dnssdUuidKey
 import net.joshe.signman.zeroconf.ServicePublisher
@@ -59,16 +65,28 @@ class SignmanServer : SuspendingCliktCommand() {
         }
     }
 
-    private suspend fun loadState(config: Config): State {
+    private suspend fun loadState(config: Config): Pair<State, StateFlow<Cacheable>> {
         val file = File(config.server.directory, "state.json")
         val renderer = Renderer(config, config.driver?.sign?.getInstance(config))
-        return try {
+        val scope = CoroutineScope(currentCoroutineContext())
+        var updated: MutableStateFlow<Cacheable>? = null
+
+        val fn: State.(State.Snapshot) -> Unit = { snap ->
+            writeFile(file) { store(it) }
+            updated?.let { updated ->
+                scope.launch { updated.emit(Cacheable.create(config, snap, renderer)) }
+            }
+        }
+        val state = try {
             file.inputStream().use { input ->
-                State.load(input, renderer) { writeFile(file) { store(it) } }
+                State.load(input, fn)
             }
         } catch (_: Exception) {
-            State.initialize(renderer) { writeFile(file) { store(it) } }
+            State.initialize(onUpdate = fn)
         }
+        updated = MutableStateFlow(Cacheable.create(config, state.snapshot, renderer))
+
+        return Pair(state, updated.asStateFlow())
     }
 
     private fun loadAuth(config: Config) = Auth.load(config.auth)
@@ -93,10 +111,10 @@ class SignmanServer : SuspendingCliktCommand() {
         setupLogging()
         val config = loadConfig()
         val uuid = loadUuid(config)
-        val state = loadState(config)
         val auth = loadAuth(config)
         val publisher = createPublisher(config, uuid)
-        Server(config, state, auth, uuid, publisher).run()
+        val (state, updates) = loadState(config)
+        Server(config, state, auth, uuid, publisher, updates, Dispatchers.IO).run()
     }
 }
 

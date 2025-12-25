@@ -2,7 +2,6 @@ package net.joshe.signman.server
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import net.joshe.signman.api.SignColor
 import net.joshe.signman.server.driver.SignDriver
 import java.awt.Color
 import java.awt.Font
@@ -31,25 +30,25 @@ class Renderer(configuration: Config, private val driver: SignDriver?) {
         }
     }
 
-    suspend fun render(text: String, fg: SignColor, bg: SignColor): Unit = mutex.withLock {
+    suspend fun render(state: State.Snapshot) = mutex.withLock {
         val g = img.createGraphics()
-        val metrics = findFont(g, text, conf.font, lastFontSize)
+        val metrics = findFont(g, state.text, conf.font, lastFontSize)
         lastFontSize = metrics.font.size
         val x = (conf.width.toFloat() - metrics.width) / 2
         val y = (conf.height.toFloat() - metrics.height) / 2 + metrics.baselineY
 
-        g.background = Color(bg.rgb.r, bg.rgb.g, bg.rgb.b)
+        g.background = Color(state.bg.rgb.r, state.bg.rgb.g, state.bg.rgb.b)
         g.clearRect(0, 0, conf.width, conf.height)
-        g.color = Color(fg.rgb.r, fg.rgb.g, fg.rgb.b)
+        g.color = Color(state.fg.rgb.r, state.fg.rgb.g, state.fg.rgb.b)
         g.font = metrics.font
-        g.drawString(text, x, y)
+        g.drawString(state.text, x, y)
 
         driver?.write(img)
-    }
 
-    fun convertPng() = ByteArrayOutputStream().also { out ->
-        ImageIO.write(img, "png", out)
-    }.toByteArray()!!
+        ByteArrayOutputStream().also { stream ->
+            ImageIO.write(img, "png", stream)
+        }.toByteArray()!!
+    }
 
     private fun findFont(g: Graphics2D, text: String, fontName: String, fontSize: Int): Metrics {
         val targetWidth = (conf.width - margin).toFloat()

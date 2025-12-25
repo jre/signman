@@ -33,11 +33,12 @@ import io.ktor.server.routing.routing
 import io.ktor.server.util.toGMTDate
 import io.ktor.util.AttributeKey
 import io.ktor.util.escapeHTML
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import net.joshe.signman.api.QueryResponse
 import net.joshe.signman.api.StatusResponse
@@ -45,49 +46,43 @@ import net.joshe.signman.api.UpdateRequest
 import net.joshe.signman.api.buildSerializersModule
 import net.joshe.signman.api.toHttpAuthenticationRealm
 import net.joshe.signman.zeroconf.ServicePublisher
-import java.time.Instant
+import org.jetbrains.annotations.TestOnly
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
+import kotlin.time.toJavaInstant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-@OptIn(ExperimentalUuidApi::class)
+@OptIn(ExperimentalUuidApi::class, ExperimentalTime::class)
 class Server(private val config: Config,
              private val state: State,
              private val auth: Auth,
              private val uuid: Uuid,
-             private val publisher: ServicePublisher) {
-    private val updater = MutableStateFlow<UpdateRequest?>(null)
-
-    private val startedInst = Instant.now()
+             private val publisher: ServicePublisher,
+             private val updates: StateFlow<Cacheable>,
+             coroutineContext: CoroutineContext) {
+    private val myCoroutineContext = coroutineContext
     private val neverCacheable = CachingOptions(CacheControl.NoStore(CacheControl.Visibility.Private))
     private val maybeCacheable = CachingOptions(CacheControl.NoCache(CacheControl.Visibility.Public))
-    private val cacheableKey = AttributeKey<Pair<Instant,String?>>("MaybeCacheableLastModifiedInstant")
-    private var scope: CoroutineScope? = null
+    private val cacheableKey = AttributeKey<Pair<Instant,String>>("MaybeCacheableLastModifiedInstant")
+    private val updateMutex = Mutex()
 
-    private suspend fun getScope(): CoroutineScope {
-        if (scope == null)
-            scope = CoroutineScope(currentCoroutineContext())
-        return scope!!
-    }
-
-    suspend fun run() = runCustom { module ->
-        embeddedServer(Netty, port = config.server.port) {
-            module(this)
-            monitor.subscribe(ServerReady) {
-                Runtime.getRuntime().addShutdownHook(Thread {
-                    @Suppress("RunBlockingInSuspendFunction")
-                    runBlocking { publisher.stop() }
-                })
-                publisher.start()
-            }
-        }.start(wait = true)
-    }
-
-    internal suspend fun runCustom(block: (suspend Application.() -> Unit) -> Unit) {
-        val updaterJob = getScope().launch {
-            updater.collect(::updateCollector)
+    fun run() = embeddedServer(Netty, port = config.server.port) {
+        monitor.subscribe(ServerReady) {
+            Runtime.getRuntime().addShutdownHook(Thread {
+                runBlocking { publisher.stop() }
+            })
+            publisher.start()
         }
+        setupInternal(this)
+    }.start(wait = true)
 
-        block {
+    @TestOnly
+    internal fun setupApplication(application: Application) = setupInternal(application)
+
+    private fun setupInternal(application: Application) {
+        application.apply {
             install(Authentication) {
                 digest("auth-digest") {
                     algorithmName = auth.digestAlgorithm
@@ -105,8 +100,8 @@ class Server(private val config: Config,
             install(ConditionalHeaders) {
                 version { call, _ ->
                     call.attributes.getOrNull(cacheableKey)?.let { (inst, eTag) ->
-                        listOf(LastModifiedVersion(inst.toGMTDate()),
-                            EntityTagVersion(eTag ?: instantETag(inst)))
+                        listOf(LastModifiedVersion(inst.toJavaInstant().toGMTDate()),
+                            EntityTagVersion(eTag))
                     } ?: emptyList()
                 }
             }
@@ -138,21 +133,59 @@ class Server(private val config: Config,
                 }
             }
         }
-
-        updaterJob.cancel()
     }
 
-    private fun instantETag(inst: Instant) = inst.epochSecond.toString(32)
-
-    private fun cacheable(call: RoutingCall, modified: Instant? = null, eTag: String? = null) {
+    private fun addCaching(call: RoutingCall, cache: Cacheable, eTag: String) {
         call.caching = maybeCacheable
-        call.attributes[cacheableKey] = Pair(modified ?: state.lastModified, eTag)
+        call.attributes[cacheableKey] = Pair(cache.modified, eTag)
     }
 
     private suspend fun endpointHomepage(call: RoutingCall) {
-        val homepage = synchronized(state) {
-            cacheable(call)
-            """<!DOCTYPE html>
+        val cache = updates.value
+        addCaching(call, cache, cache.htmlETag)
+        call.respondText(cache.html, ContentType.Text.Html)
+    }
+
+    private suspend fun endpointPng(call: RoutingCall) {
+        val cache = updates.value
+        addCaching(call, cache, cache.pngETag)
+        call.respondBytes(cache.png, ContentType.Image.PNG)
+    }
+
+    private suspend fun endpointQuery(call: RoutingCall) {
+        call.respond(QueryResponse(uuid = uuid, name = config.name, minApi = 1, maxApi = 1))
+    }
+
+    private suspend fun endpointStatus(call: RoutingCall) {
+        val cache = updates.value
+        call.respond(StatusResponse(
+            text = cache.state.text,
+            fg = cache.state.fg,
+            bg = cache.state.bg,
+            type = config.sign.color.type,
+            defaultFg = config.sign.color.foreground,
+            defaultBg = config.sign.color.background,
+            colors = (config.sign.color as? Config.IndexedColorConfig)?.palette))
+    }
+
+    private suspend fun endpointUpdate(call: RoutingCall) {
+        var updated: State.Snapshot? = null
+        val req = call.receive<UpdateRequest>()
+        updateMutex.withLock {
+            updates.cancellableCollect(myCoroutineContext) { cache ->
+                if (updated == null)
+                    updated = state.update(text = req.text,
+                        fg = req.fg ?: config.sign.color.foreground,
+                        bg = req.bg ?: config.sign.color.background)
+                if (updated == cache.state)
+                    currentCoroutineContext().cancel()
+            }
+        }
+        call.respond(HttpStatusCode.OK)
+    }
+
+    companion object {
+        fun getHtml(config: Config, state: State.Snapshot) = """<!DOCTYPE html>
 <html>
     <head>
         <title>${config.name.escapeHTML()}</title>
@@ -178,47 +211,5 @@ class Server(private val config: Config,
     </body>
 </html>
 """
-        }
-        call.respondText(homepage, ContentType.Text.Html)
-    }
-
-    private suspend fun endpointPng(call: RoutingCall) {
-        val png = synchronized(state) {
-            cacheable(call, eTag = state.pngETag)
-            state.png
-        }
-        call.respondBytes(png, ContentType.Image.PNG)
-    }
-
-    private suspend fun endpointQuery(call: RoutingCall) {
-        cacheable(call, modified = startedInst)
-        call.respond(QueryResponse(uuid = uuid, name = config.name, minApi = 1, maxApi = 1))
-    }
-
-    private suspend fun endpointStatus(call: RoutingCall) {
-        val resp = synchronized(state) {
-            cacheable(call)
-            StatusResponse(
-                text = state.text,
-                fg = state.fg,
-                bg = state.bg,
-                type = config.sign.color.type,
-                defaultFg = config.sign.color.foreground,
-                defaultBg = config.sign.color.background,
-                colors = (config.sign.color as? Config.IndexedColorConfig)?.palette)
-        }
-        call.respond(resp)
-    }
-
-    private suspend fun endpointUpdate(call: RoutingCall) {
-        updater.value = call.receive()
-        call.respond(HttpStatusCode.OK)
-    }
-
-    private suspend fun updateCollector(req: UpdateRequest?) {
-        if (req != null)
-            state.update(text = req.text,
-                fg = req.fg ?: config.sign.color.foreground,
-                bg = req.bg ?: config.sign.color.background)
     }
 }

@@ -1,10 +1,16 @@
 package net.joshe.signman.server
 
+import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
 import io.ktor.client.call.body
+import io.ktor.client.engine.HttpClientEngineConfig
+import io.ktor.client.engine.java.Java
 import io.ktor.client.plugins.auth.providers.DigestAuthCredentials
 import io.ktor.client.plugins.auth.providers.digest
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.sse.SSE
+import io.ktor.client.plugins.sse.sse
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
 import io.ktor.client.request.post
@@ -18,8 +24,10 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.runTestApplication
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock as Clockx
@@ -130,7 +138,7 @@ class ServerTest {
     private fun SignColor.convert(config: Config)
             = if (config.sign.color.type == ColorType.RGB && this is IndexedColor) toRgb() else this
 
-    private fun ApplicationTestBuilder.mockClient(user: String? = null) = createClient {
+    private fun HttpClientConfig<out HttpClientEngineConfig>.configureClient(user: String?) {
         if (user != null)
             install(io.ktor.client.plugins.auth.Auth) {
                 digest {
@@ -148,12 +156,21 @@ class ServerTest {
         install(SSE) { showCommentEvents() }
     }
 
+    private fun ApplicationTestBuilder.mockClient(user: String? = null) = createClient { configureClient(user) }
+
+    private fun localClient(port: Int, user: String? = null) = HttpClient(Java) {
+        configureClient(user)
+        defaultRequest { url("http://localhost:$port") }
+    }
+
     private fun getStatusResp(config: Config, text: String, fg: SignColor? = null, bg: SignColor? = null): StatusResponse {
         val curFg = (fg ?: config.sign.color.foreground).convert(config)
         val curBg = (bg ?: config.sign.color.background).convert(config)
+        val snap = State.Snapshot(text, fg = curFg, bg = curBg)
         return StatusResponse(type = config.sign.color.type, text = text, fg = curFg, bg = curBg,
             defaultFg = config.sign.color.foreground, defaultBg = config.sign.color.background,
-            colors = if (config.sign.color.type == ColorType.INDEXED) colors8 else null)
+            colors = if (config.sign.color.type == ColorType.INDEXED) colors8 else null,
+            updateTag = snap.eTag())
     }
 
     @Test fun testMainRgb() = mainTests(configRgb, uuidRgb, "alice", ::mkStateRgb)
@@ -386,6 +403,64 @@ class ServerTest {
                 testScheduler.advanceUntilIdle()
                 assertEquals(200, resp.status.value)
                 assertTrue(resp.bodyAsBytes().isNotEmpty())
+            }
+        }
+    }
+
+    @Test fun testSseRgb() = sseTests(configRgb, uuidRgb, "alice", ::mkStateRgb)
+    @Test fun testSseIndexed() = sseTests(configIdx, uuidIdx, "bob", ::mkStateIdx)
+
+    private fun sseTests(config: Config, uuid: Uuid, user: String,
+                         mkState: suspend (State.(State.Snapshot) -> Unit) -> State) = runTest {
+        val scope = this
+        val renderer = Renderer(config, null)
+        var flow: MutableStateFlow<Cacheable>? = null
+        val state = mkState { snap ->
+            scope.launch { //(start = CoroutineStart.UNDISPATCHED) {
+                flow!!.emit(Cacheable.create(config, snap, renderer))
+            }
+        }
+        flow = MutableStateFlow(Cacheable.create(config, state.snapshot, renderer))
+        val server = Server(config, state, auth, uuid, publisher, flow.asStateFlow(), currentCoroutineContext())
+
+        server.runTesting { port ->
+            val client = localClient(port, user)
+
+            val firstSnap = state.snapshot
+            client.sse("/api/v1/events", showCommentEvents = false) {
+                val events = incoming.produceIn(scope)
+
+                var event = events.receive()
+                assertEquals("updated", event.event)
+                assertEquals(firstSnap.eTag(), event.data)
+                assertTrue("unexpected SSE update event: $event") {
+                    event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
+                }
+
+                client.post("/api/v1/update") {
+                    contentType(ContentType.Application.Json)
+                    setBody(UpdateRequest(text = firstSnap.text, fg = firstSnap.fg, bg = firstSnap.bg))
+                }
+                event = events.receive()
+                assertEquals("updated", event.event)
+                assertEquals(firstSnap.eTag(), event.data)
+                assertTrue("unexpected SSE update event: $event") {
+                    event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
+                }
+
+                val thirdSnap = State.Snapshot(text = "server, send me some events",
+                    fg = colors8[0].convert(config), bg = colors8[5].convert(config))
+                client.post("/api/v1/update") {
+                    contentType(ContentType.Application.Json)
+                    setBody(UpdateRequest(text = "server, send me some events",
+                        fg = colors8[0].convert(config), bg = colors8[5].convert(config)))
+                }
+                event = events.receive()
+                assertEquals("updated", event.event)
+                assertEquals(thirdSnap.eTag(), event.data)
+                assertTrue("unexpected SSE update event: $event") {
+                    event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
+                }
             }
         }
     }

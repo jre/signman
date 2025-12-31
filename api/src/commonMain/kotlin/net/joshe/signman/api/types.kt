@@ -91,7 +91,8 @@ data class StatusResponse(
     @SerialName("default-bg") val defaultBg: SignColor,
     @SerialName("default-fg") val defaultFg: SignColor,
     @Serializable(with = IndexedColorListJsonSerializer::class)
-    val colors: List<IndexedColor>? = null)
+    val colors: List<IndexedColor>? = null,
+    @SerialName("update-tag") val updateTag: String = "")
 
 @Serializable
 data class UpdateRequest(

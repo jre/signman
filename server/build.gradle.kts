@@ -24,11 +24,13 @@ dependencies {
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.default.headers)
     implementation(libs.ktor.server.netty)
+    implementation(libs.ktor.server.sse)
     implementation(libs.slf4j.simple)
     testImplementation(kotlin("test"))
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.auth)
     testImplementation(libs.ktor.client.content.negotiation)
+    testImplementation(libs.ktor.client.java)
     testImplementation(libs.kotlinx.coroutines.test)
 }
 

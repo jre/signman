@@ -127,8 +127,9 @@ internal class TypesTest {
                 """"current-bg":{"type":"rgb","rgb":"f8f8f8"},""" +
                 """"current-fg":{"type":"rgb","rgb":"ffbf00"},""" +
                 """"default-bg":{"type":"rgb","rgb":"ffffff"},""" +
-                """"default-fg":{"type":"rgb","rgb":"000000"}}"""
-        val expected = StatusResponse("Wow", type = ColorType.RGB,
+                """"default-fg":{"type":"rgb","rgb":"000000"},""" +
+                """"update-tag":"fake"}"""
+        val expected = StatusResponse("Wow", type = ColorType.RGB, updateTag = "fake",
             bg = RGBColor(RGB(248, 248, 248)), fg = RGBColor(RGB(255,191,0)),
             defaultBg = RGBColor(RGB(255, 255, 255)), defaultFg = RGBColor(RGB(0,0,0)))
         val parsed: StatusResponse = j.decodeFromString(jsonText)
@@ -150,11 +151,11 @@ internal class TypesTest {
                 """"current-fg":{"type":"indexed","index":0,"rgb":"000000","name":"Black"},""" +
                 """"default-bg":{"type":"indexed","index":0,"rgb":"000000","name":"Black"},""" +
                 """"default-fg":{"type":"indexed","index":1,"rgb":"ffffff","name":"White"},""" +
-                """"colors":[["000000","Black"],["ffffff","White"]]}"""
+                """"colors":[["000000","Black"],["ffffff","White"]],"update-tag":"fake"}"""
         val bw = listOf(IndexedColor(0, RGB(0,0,0), "Black"),
             IndexedColor(1, RGB(255,255,255), "White"))
         val expected = StatusResponse("yay!", ColorType.INDEXED,
-            bw[1], bw[0], bw[0], bw[1], bw)
+            bw[1], bw[0], bw[0], bw[1], bw, "fake")
         val parsed: StatusResponse = j.decodeFromString(jsonText)
 
         assertEquals(expected.text, parsed.text)

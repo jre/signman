@@ -30,7 +30,12 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import io.ktor.server.sse.SSE
+import io.ktor.server.sse.ServerSSESession
+import io.ktor.server.sse.heartbeat
+import io.ktor.server.sse.sse
 import io.ktor.server.util.toGMTDate
+import io.ktor.sse.ServerSentEvent
 import io.ktor.util.AttributeKey
 import io.ktor.util.escapeHTML
 import kotlinx.coroutines.cancel
@@ -48,6 +53,7 @@ import net.joshe.signman.api.toHttpAuthenticationRealm
 import net.joshe.signman.zeroconf.ServicePublisher
 import org.jetbrains.annotations.TestOnly
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlin.time.toJavaInstant
@@ -77,6 +83,14 @@ class Server(private val config: Config,
         }
         setupInternal(this)
     }.start(wait = true)
+
+    @TestOnly
+    internal suspend fun runTesting(block: suspend (Int) -> Unit) {
+        val server = embeddedServer(Netty, port = 0) { setupInternal(this) }
+        server.start()
+        block(server.engine.resolvedConnectors().first().port)
+        server.stop()
+    }
 
     @TestOnly
     internal fun setupApplication(application: Application) = setupInternal(application)
@@ -117,6 +131,7 @@ class Server(private val config: Config,
 
             install(CallLogging)
             install(DefaultHeaders)
+            install(SSE)
 
             routing {
                 get("/") { endpointHomepage(call) }
@@ -125,6 +140,7 @@ class Server(private val config: Config,
                     get("/api/authenticate") { call.respond(HttpStatusCode.OK) }
                 }
                 route("/api/v1") {
+                    sse("/events") { endpointEvents(this) }
                     get("/image") { endpointPng(call) }
                     get("/status") { endpointStatus(call) }
                     authenticate("auth-digest") {
@@ -165,7 +181,8 @@ class Server(private val config: Config,
             type = config.sign.color.type,
             defaultFg = config.sign.color.foreground,
             defaultBg = config.sign.color.background,
-            colors = (config.sign.color as? Config.IndexedColorConfig)?.palette))
+            colors = (config.sign.color as? Config.IndexedColorConfig)?.palette,
+            updateTag = cache.stateETag))
     }
 
     private suspend fun endpointUpdate(call: RoutingCall) {
@@ -184,7 +201,19 @@ class Server(private val config: Config,
         call.respond(HttpStatusCode.OK)
     }
 
+    private suspend fun endpointEvents(session: ServerSSESession) {
+        session.heartbeat {
+            event = ServerSentEvent(comments = "heartbeat")
+            period = 30.seconds
+        }
+        updates.collect { cache ->
+            session.send(cache.stateETag, event = UPDATE_EVENT)
+        }
+    }
+
     companion object {
+        private const val UPDATE_EVENT = "updated"
+
         fun getHtml(config: Config, state: State.Snapshot) = """<!DOCTYPE html>
 <html>
     <head>

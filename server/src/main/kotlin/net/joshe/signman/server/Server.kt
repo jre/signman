@@ -214,7 +214,7 @@ class Server(private val config: Config,
     companion object {
         private const val UPDATE_EVENT = "updated"
 
-        fun getHtml(config: Config, state: State.Snapshot) = """<!DOCTYPE html>
+        fun getHtml(config: Config, state: State.Snapshot, stateETag: String) = """<!DOCTYPE html>
 <html>
     <head>
         <title>${config.name.escapeHTML()}</title>
@@ -234,6 +234,15 @@ class Server(private val config: Config,
                 margin: auto;
             }
         </style>
+        <script>
+            var source = new EventSource("/api/v1/events");
+            source.addEventListener("$UPDATE_EVENT", function (event) {
+                if (event.data != "$stateETag") {
+                    source.close();
+                    location.reload();
+                }
+            });
+        </script>
     </head>
     <body class="centering">
        <img src="/api/v1/image" width=${config.sign.width} height=${config.sign.height} alt="${state.text.escapeHTML()}">

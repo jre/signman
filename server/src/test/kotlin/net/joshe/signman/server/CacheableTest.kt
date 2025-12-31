@@ -147,7 +147,7 @@ class CacheableTest {
 
     @Test fun testChangedHtml() = runBlocking {
         val htmlState = defSnap.copy(text = "help im trapped in a test suite factory")
-        val newHtml = Server.getHtml(conf, htmlState)
+        val newHtml = Server.getHtml(conf, htmlState, htmlState.eTag())
         val older = Cacheable.create(conf, defSnap, renderer)
         val newer = Cacheable.create(older.modified, defSnap, older.png, newHtml)
         assertNotEquals(older, newer)

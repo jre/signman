@@ -21,9 +21,10 @@ class Cacheable private constructor(val modified: Instant,
     override fun hashCode() = Objects.hash(modified, stateETag, pngETag, htmlETag)
 
     companion object {
-        suspend fun create(config: Config, state: State.Snapshot, renderer: Renderer) = Cacheable(
-            Clock.System.now(), state, state.eTag(),
-            png = renderer.render(state), html = Server.getHtml(config, state))
+        suspend fun create(config: Config, state: State.Snapshot, renderer: Renderer) = state.eTag().let { stateETag ->
+            Cacheable(Clock.System.now(), state, stateETag,
+                png = renderer.render(state), html = Server.getHtml(config, state, stateETag))
+        }
 
         @TestOnly
         internal fun create(modified: Instant, state: State.Snapshot, png: ByteArray, html: String)

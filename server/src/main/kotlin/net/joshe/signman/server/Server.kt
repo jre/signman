@@ -13,8 +13,9 @@ import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.digest
+import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
-import io.ktor.server.netty.Netty
+import io.ktor.server.jetty.jakarta.Jetty
 import io.ktor.server.plugins.cachingheaders.CachingHeaders
 import io.ktor.server.plugins.cachingheaders.caching
 import io.ktor.server.plugins.calllogging.CallLogging
@@ -50,7 +51,7 @@ import net.joshe.signman.api.StatusResponse
 import net.joshe.signman.api.UpdateRequest
 import net.joshe.signman.api.buildSerializersModule
 import net.joshe.signman.api.toHttpAuthenticationRealm
-import net.joshe.signman.zeroconf.ServicePublisher
+import org.eclipse.jetty.server.ServerConnector
 import org.jetbrains.annotations.TestOnly
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.seconds
@@ -65,7 +66,7 @@ class Server(private val config: Config,
              private val state: State,
              private val auth: Auth,
              private val uuid: Uuid,
-             private val publisher: ServicePublisher,
+             private val serverEnv: ServerEnvironment,
              private val updates: StateFlow<Cacheable>,
              coroutineContext: CoroutineContext) {
     private val myCoroutineContext = coroutineContext
@@ -74,22 +75,34 @@ class Server(private val config: Config,
     private val cacheableKey = AttributeKey<Pair<Instant,String>>("MaybeCacheableLastModifiedInstant")
     private val updateMutex = Mutex()
 
-    fun run() = embeddedServer(Netty, port = config.server.port) {
+    private val module: suspend Application.() -> Unit = {
         monitor.subscribe(ServerReady) {
             Runtime.getRuntime().addShutdownHook(Thread {
-                runBlocking { publisher.stop() }
+                runBlocking { serverEnv.stopping() }
             })
-            publisher.start()
+            serverEnv.ready()
         }
         setupInternal(this)
+    }
+
+    fun run() = when (config.server) {
+        is Config.StandaloneServerConfig ->
+            embeddedServer(Jetty, config.server.port, module = module)
+        is Config.SystemdServerConfig ->
+            embeddedServer(Jetty, module = module, configure = {
+                connector {}
+                configureServer = {
+                    connectors.forEach { (it as ServerConnector).isInheritChannel = true }
+                }
+            })
     }.start(wait = true)
 
     @TestOnly
     internal suspend fun runTesting(block: suspend (Int) -> Unit) {
-        val server = embeddedServer(Netty, port = 0) { setupInternal(this) }
+        val server = embeddedServer(Jetty, port = 0) { setupInternal(this) }
         server.start()
         block(server.engine.resolvedConnectors().first().port)
-        server.stop()
+        server.stop(gracePeriodMillis = 0, timeoutMillis = 0)
     }
 
     @TestOnly

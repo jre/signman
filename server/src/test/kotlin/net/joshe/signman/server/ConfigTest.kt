@@ -12,6 +12,7 @@ import kotlin.test.assertNull
 
 internal class ConfigTest {
     private val in1 = """# Simple config parsing test input
+server.type = standalone
 server.directory = \t /home/signman/state  \t
 auth.type  = file
  auth.path= /home/signman/passwd
@@ -27,6 +28,7 @@ auth.type=file
 name=Signman Server
 server.directory=/home/signman/state
 server.port=80
+server.type=standalone
 sign.color.background=010203
 sign.color.foreground=f1f2f3
 sign.color.type=rgb
@@ -36,6 +38,7 @@ sign.width=640"""
 
     private val in2 = """# indexed color parsing test input
 name = Config Test
+server.type = standalone
 server.port = 8080
 server.directory = /var/signman
 auth.type = file
@@ -68,6 +71,7 @@ driver.spi.type=dummy
 name=Config Test
 server.directory=/var/signman
 server.port=8080
+server.type=standalone
 sign.color.background=1
 sign.color.foreground=0
 sign.color.palette.0=000000 Black
@@ -93,7 +97,7 @@ sign.width=340"""
         .lines().filterNot { it.startsWith('#') || it.isEmpty() }.sorted().joinToString("\n")
 
     @Test fun testParse1Name() { assertEquals("Signman Server", p(in1).name)}
-    @Test fun testParse1Port() { assertEquals(80, p(in1).server.port) }
+    @Test fun testParse1Port() { assertEquals(80, (p(in1).server as? Config.StandaloneServerConfig)?.port) }
     @Test fun testParse1Dir() { assertEquals(File("/home/signman/state"), p(in1).server.directory) }
     @Test fun testParse1Width() { assertEquals(640, p(in1).sign.width) }
     @Test fun testParse1Height() { assertEquals(480, p(in1).sign.height) }
@@ -105,7 +109,7 @@ sign.width=340"""
     @Test fun testOutput1() { assertEquals(out1, output(p(in1))) }
 
     @Test fun testParse2Name() { assertEquals("Config Test", p(in2).name)}
-    @Test fun testParse2Port() { assertEquals(8080, p(in2).server.port) }
+    @Test fun testParse2Port() { assertEquals(8080, (p(in2).server as? Config.StandaloneServerConfig)?.port) }
     @Test fun testParse2Dir() { assertEquals(File("/var/signman"), p(in2).server.directory) }
     @Test fun testParse2Width() { assertEquals(340, p(in2).sign.width) }
     @Test fun testParse2Height() { assertEquals(180, p(in2).sign.height) }

@@ -1,0 +1,10 @@
+[Unit]
+Description=Sign Manager Server socket
+PartOf=signman.service
+
+[Socket]
+ListenStream=80
+Accept=no
+
+[Install]
+WantedBy=signman.service

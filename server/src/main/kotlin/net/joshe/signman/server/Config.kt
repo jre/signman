@@ -51,10 +51,24 @@ data class Config(val server: ServerConfig, val sign: SignConfig, val auth: Auth
     }
 
     @Serializable
-    data class ServerConfig(
+    sealed class ServerConfig {
+        abstract val directory: File
+    }
+
+    @Serializable
+    @SerialName("standalone")
+    data class StandaloneServerConfig(
         val port: Int = 80,
         @Serializable(with = FileAsStringSerializer::class)
-        val directory: File)
+        val log: File? = null,
+        @Serializable(with = FileAsStringSerializer::class)
+        override val directory: File) : ServerConfig()
+
+    @Serializable
+    @SerialName("systemd")
+    data class SystemdServerConfig(
+        @Serializable(with = FileAsStringSerializer::class)
+        override val directory: File) : ServerConfig()
 
     @Serializable
     data class SignConfig(val font: String = Font.SERIF, val width: Int, val height: Int, val color: ColorConfig)

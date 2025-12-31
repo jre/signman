@@ -22,11 +22,9 @@ import net.joshe.signman.api.dnssdService
 import net.joshe.signman.api.dnssdUuidKey
 import net.joshe.signman.zeroconf.ServicePublisher
 import net.joshe.signman.zeroconf.avahi.AvahiPublisherBuilder
-import org.slf4j.simple.SimpleLogger
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.OutputStream
-import java.lang.Integer.min
-import kotlin.math.max
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -40,19 +38,8 @@ class SignmanServer : SuspendingCliktCommand() {
         .file().default(File("/etc/signman.conf"))
     private val quieter by option("-q", "--quiet", help="Lower the output verbosity level").counted()
     private val louder by option("-v", "--verbose", help="Raise the output verbosity level").counted()
+    private val verbosity: Int get() = louder - quieter
     private val noPublish by option("--no-publish", help="Don't publish the server via zeroconf").flag(default = false)
-
-    private fun setupLogging() {
-        val levels = listOf("trace", "debug", "info", "warn", "error", "off")
-        val level = min(max(levels.indexOf("info") + quieter - louder, 0), levels.lastIndex)
-        System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, levels[level])
-        System.setProperty(SimpleLogger.SHOW_DATE_TIME_KEY, "true")
-        System.setProperty(SimpleLogger.DATE_TIME_FORMAT_KEY, "yyyy-MM-dd'T'HH:mm:ss.SSSZ")
-        System.setProperty(SimpleLogger.LEVEL_IN_BRACKETS_KEY, "true")
-        System.setProperty(SimpleLogger.SHOW_THREAD_NAME_KEY, "false")
-        System.setProperty(SimpleLogger.SHOW_LOG_NAME_KEY, "false")
-        System.setProperty(SimpleLogger.SHOW_SHORT_LOG_NAME_KEY, "true")
-    }
 
     private fun loadConfig() = configPath.inputStream().use(Config::load)
 
@@ -91,10 +78,10 @@ class SignmanServer : SuspendingCliktCommand() {
 
     private fun loadAuth(config: Config) = Auth.load(config.auth)
 
-    private fun createPublisher(config: Config, uuid: Uuid)
+    private fun createPublisher(config: Config, uuid: Uuid, port: Int)
     = if (!noPublish)
         AvahiPublisherBuilder(Dispatchers.IO, name = config.name, type = dnssdService,
-            port = config.server.port, params = mapOf(dnssdUuidKey to uuid.toString())).build()
+            port = port, params = mapOf(dnssdUuidKey to uuid.toString())).build()
     else
         object : ServicePublisher {
             override fun start() {}
@@ -108,13 +95,14 @@ class SignmanServer : SuspendingCliktCommand() {
     }
 
     override suspend fun run() {
-        setupLogging()
         val config = loadConfig()
+        setupLogging(config, verbosity)
+        val env = ServerEnvironment.create(config)
         val uuid = loadUuid(config)
         val auth = loadAuth(config)
-        val publisher = createPublisher(config, uuid)
+        env.publisher = createPublisher(config, uuid, env.port)
         val (state, updates) = loadState(config)
-        Server(config, state, auth, uuid, publisher, updates, Dispatchers.IO).run()
+        Server(config, state, auth, uuid, env, updates, Dispatchers.IO).run()
     }
 }
 
@@ -122,5 +110,11 @@ suspend fun main(args: Array<String>) {
     System.setProperty("java.awt.headless", "true")
     check(java.awt.GraphicsEnvironment.isHeadless())
 
-    SignmanServer().main(args)
+    ServerEnvironment.starting()
+
+    try {
+        SignmanServer().main(args)
+    } catch (e: Exception) {
+        LoggerFactory.getLogger("main").error("Unhandled exception", e)
+    }
 }

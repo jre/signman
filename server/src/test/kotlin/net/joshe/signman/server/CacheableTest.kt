@@ -20,7 +20,7 @@ class CacheableTest {
     private val defFg = RGBColor(RGB(16, 16, 16))
     private val defSnap = State.Snapshot(defText, fg = defFg, bg = defBg)
     private val conf = Config(
-        server = Config.ServerConfig(directory = File("/nonexistent")),
+        server = Config.StandaloneServerConfig(directory = File("/nonexistent")),
         sign = Config.SignConfig(width = 100, height = 60,
             color = Config.RGBColorConfig(foreground = defFg, background = defBg)),
         auth = Config.AuthConfig(Config.AuthType.FILE, File("/fake/file")))

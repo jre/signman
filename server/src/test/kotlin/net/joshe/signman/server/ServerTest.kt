@@ -49,7 +49,6 @@ import net.joshe.signman.api.SignColor
 import net.joshe.signman.api.StatusResponse
 import net.joshe.signman.api.UpdateRequest
 import net.joshe.signman.api.buildSerializersModule
-import net.joshe.signman.zeroconf.ServicePublisher
 import org.slf4j.simple.SimpleLogger
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -89,24 +88,21 @@ class ServerTest {
     private val configRgb = Config(
         name = "RGB test server",
         auth = Config.AuthConfig(Config.AuthType.FILE, File("/garbage")),
-        server = Config.ServerConfig(directory = File("/nonsense")),
+        server = Config.StandaloneServerConfig(directory = File("/nonsense")),
         sign = Config.SignConfig(width = 100, height = 100,
             color = Config.RGBColorConfig(foreground = defFgRgb, background = defBgRgb)))
 
     private val configIdx = Config(
         name = "Indexed test server",
         auth = Config.AuthConfig(Config.AuthType.FILE, File("/garbage")),
-        server = Config.ServerConfig(directory = File("/nonsense")),
+        server = Config.StandaloneServerConfig(directory = File("/nonsense")),
         sign = Config.SignConfig(width = 100, height = 100, color = Config.IndexedColorConfig(
             foregroundIndex = defFgIdx.index, backgroundIndex = defBgIdx.index, palette = colors8)))
 
     private val credentials = mapOf("alice" to "apple", "bob" to "banana")
     private val auth = Auth.loadStream(ByteArrayInputStream(
         credentials.map { (u, p) -> "$u:plain:$p" }.joinToString("\n").toByteArray()))
-    private val publisher = object : ServicePublisher {
-        override fun start() {}
-        override suspend fun stop() {}
-    }
+    private val env = ServerEnvironment.createTest(80, null, null)
 
     private val httpTimeFmt = LocalDateTime.Format {
         dayOfWeek(DayOfWeekNames.ENGLISH_ABBREVIATED)
@@ -187,7 +183,7 @@ class ServerTest {
             scope.launch { flow!!.emit(Cacheable.create(config, snap, renderer)) }
         }
         flow = MutableStateFlow(Cacheable.create(config, state.snapshot, renderer))
-        val server = Server(config, state, auth, uuid, publisher, flow.asStateFlow(), coroutineContext)
+        val server = Server(config, state, auth, uuid, env, flow.asStateFlow(), coroutineContext)
 
         runTestApplication(coroutineContext) {
             application { server.setupApplication(this) }
@@ -324,7 +320,7 @@ class ServerTest {
             scope.launch { flow!!.emit(Cacheable.create(config, snap, renderer)) }
         }
         flow = MutableStateFlow(Cacheable.create(config, state.snapshot, renderer))
-        val server = Server(config, state, auth, uuid, publisher, flow.asStateFlow(), coroutineContext)
+        val server = Server(config, state, auth, uuid, env, flow.asStateFlow(), coroutineContext)
 
         runTestApplication(coroutineContext) {
             application { server.setupApplication(this) }
@@ -423,50 +419,50 @@ class ServerTest {
         val renderer = Renderer(config, null)
         var flow: MutableStateFlow<Cacheable>? = null
         val state = mkState(config) { snap ->
-            scope.launch { //(start = CoroutineStart.UNDISPATCHED) {
+            scope.launch {
                 flow!!.emit(Cacheable.create(config, snap, renderer))
             }
         }
         flow = MutableStateFlow(Cacheable.create(config, state.snapshot, renderer))
-        val server = Server(config, state, auth, uuid, publisher, flow.asStateFlow(), currentCoroutineContext())
+        val server = Server(config, state, auth, uuid, env, flow.asStateFlow(), currentCoroutineContext())
 
         server.runTesting { port ->
-            val client = localClient(port, user)
+            localClient(port, user).use { client ->
+                val firstSnap = state.snapshot
+                client.sse("/api/v1/events", showCommentEvents = false) {
+                    val events = incoming.produceIn(scope)
 
-            val firstSnap = state.snapshot
-            client.sse("/api/v1/events", showCommentEvents = false) {
-                val events = incoming.produceIn(scope)
+                    var event = events.receive()
+                    assertEquals("updated", event.event)
+                    assertEquals(firstSnap.eTag(), event.data)
+                    assertTrue("unexpected SSE update event: $event") {
+                        event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
+                    }
 
-                var event = events.receive()
-                assertEquals("updated", event.event)
-                assertEquals(firstSnap.eTag(), event.data)
-                assertTrue("unexpected SSE update event: $event") {
-                    event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
-                }
+                    client.post("/api/v1/update") {
+                        contentType(ContentType.Application.Json)
+                        setBody(UpdateRequest(text = firstSnap.text, fg = firstSnap.fg, bg = firstSnap.bg))
+                    }
+                    event = events.receive()
+                    assertEquals("updated", event.event)
+                    assertEquals(firstSnap.eTag(), event.data)
+                    assertTrue("unexpected SSE update event: $event") {
+                        event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
+                    }
 
-                client.post("/api/v1/update") {
-                    contentType(ContentType.Application.Json)
-                    setBody(UpdateRequest(text = firstSnap.text, fg = firstSnap.fg, bg = firstSnap.bg))
-                }
-                event = events.receive()
-                assertEquals("updated", event.event)
-                assertEquals(firstSnap.eTag(), event.data)
-                assertTrue("unexpected SSE update event: $event") {
-                    event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
-                }
-
-                val thirdSnap = State.Snapshot(text = "server, send me some events",
-                    fg = colors8[0].convert(config), bg = colors8[5].convert(config))
-                client.post("/api/v1/update") {
-                    contentType(ContentType.Application.Json)
-                    setBody(UpdateRequest(text = "server, send me some events",
-                        fg = colors8[0].convert(config), bg = colors8[5].convert(config)))
-                }
-                event = events.receive()
-                assertEquals("updated", event.event)
-                assertEquals(thirdSnap.eTag(), event.data)
-                assertTrue("unexpected SSE update event: $event") {
-                    event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
+                    val thirdSnap = State.Snapshot(text = "server, send me some events",
+                        fg = colors8[0].convert(config), bg = colors8[5].convert(config))
+                    client.post("/api/v1/update") {
+                        contentType(ContentType.Application.Json)
+                        setBody(UpdateRequest(text = "server, send me some events",
+                            fg = colors8[0].convert(config), bg = colors8[5].convert(config)))
+                    }
+                    event = events.receive()
+                    assertEquals("updated", event.event)
+                    assertEquals(thirdSnap.eTag(), event.data)
+                    assertTrue("unexpected SSE update event: $event") {
+                        event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
+                    }
                 }
             }
         }

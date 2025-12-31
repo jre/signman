@@ -1,0 +1,18 @@
+[Unit]
+Description=Sign Manager Server
+After=network.target dbus.service signman.socket
+Requires=signman.socket
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/java -jar /usr/share/signman/signman-server.jar
+Restart=always
+StandardInput=socket
+StandardOutput=null
+StandardError=journal
+SyslogIdentifier=signman
+User=signman
+Group=signman
+
+[Install]
+WantedBy=default.target

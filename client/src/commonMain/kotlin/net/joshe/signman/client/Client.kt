@@ -83,6 +83,8 @@ class Client internal constructor(private val client: HttpClient,
 
     suspend fun status(uuid: Uuid): StatusResponse = get(uuid, "/api/v1/status").body()
 
+    suspend fun clear(uuid: Uuid) { get(uuid, "/api/v1/clear") }
+
     suspend fun update(uuid: Uuid, req: UpdateRequest) { post(uuid, "/api/v1/update", req) }
 
     private suspend fun testConnection(info: HostInfo): Pair<Uuid,QueryResponse>

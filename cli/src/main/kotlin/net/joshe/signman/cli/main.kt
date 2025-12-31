@@ -287,6 +287,17 @@ private class Login : AuthenticatedCommand() {
     }
 }
 
+private class Clear : AuthenticatedCommand() {
+    override fun help(context: Context) = "Clear a server sign display"
+
+    override suspend fun runSub(uuid: Uuid) {
+        val label = serverString(uuid)
+        output("Clearing $label...")
+        client.clear(uuid)
+        output("Success!")
+    }
+}
+
 private class Update : AuthenticatedCommand() {
     override fun help(context: Context) = "Update a server sign display"
 
@@ -346,6 +357,7 @@ private class SignmanCli : SuspendingCliktCommand() {
     companion object {
         val cmdAliases = mapOf(
             "browse" to listOf("b"),
+            "clear" to listOf("c"),
             "login" to listOf("lo"),
             "saved" to listOf("ls"),
             "status" to listOf("s", "st"),
@@ -355,6 +367,6 @@ private class SignmanCli : SuspendingCliktCommand() {
 
 suspend fun main(args: Array<String>) {
     SignmanCli()
-        .subcommands(Browse(), Forget(), Saved(), Login(), Status(), Update())
+        .subcommands(Browse(), Forget(), Saved(), Login(), Status(), Clear(), Update())
         .main(args)
 }

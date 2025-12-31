@@ -144,6 +144,7 @@ class Server(private val config: Config,
                     get("/image") { endpointPng(call) }
                     get("/status") { endpointStatus(call) }
                     authenticate("auth-digest") {
+                        get("/clear") { endpointClear(call) }
                         post("/update") { endpointUpdate(call) }
                     }
                 }
@@ -183,6 +184,19 @@ class Server(private val config: Config,
             defaultBg = config.sign.color.background,
             colors = (config.sign.color as? Config.IndexedColorConfig)?.palette,
             updateTag = cache.stateETag))
+    }
+
+    private suspend fun endpointClear(call: RoutingCall) {
+        var updated: State.Snapshot? = null
+        updateMutex.withLock {
+            updates.cancellableCollect(myCoroutineContext) { cache ->
+                if (updated == null)
+                    updated = state.erase()
+                if (updated == cache.state)
+                    currentCoroutineContext().cancel()
+            }
+        }
+        call.respond(HttpStatusCode.OK)
     }
 
     private suspend fun endpointUpdate(call: RoutingCall) {

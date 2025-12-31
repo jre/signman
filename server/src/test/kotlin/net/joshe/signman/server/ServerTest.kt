@@ -302,6 +302,13 @@ class ServerTest {
             assertEquals(ContentType.Image.PNG, resp.contentType())
             newPngBytes = resp.bodyAsBytes()
             assertFalse(oldPngBytes.contentEquals(newPngBytes))
+
+            resp = client.get("/api/v1/clear")
+            testScheduler.advanceUntilIdle()
+            assertEquals(200, resp.status.value)
+            assertEquals(3, updated)
+            assertEquals(State.Snapshot("", bg = config.sign.color.background,
+                fg = config.sign.color.foreground), flow.value.state)
         }
     }
 

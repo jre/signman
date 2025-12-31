@@ -201,9 +201,11 @@ private abstract class ApiCommand : BaseCommand() {
     private suspend fun queryDefault() = hostCache.names().let { names ->
         if (names.size == 1)
             names.keys.first()
-        else
+        else if (names.size > 1)
             throw PrintMessage("Multiple servers: " +
                     "\"${names.keys.sorted().joinToString("\", \"")}\"")
+        else
+            throw PrintMessage("No cached servers found, try \"browse\"")
     }
 
     override suspend fun runSub() = runSub(getUuid())

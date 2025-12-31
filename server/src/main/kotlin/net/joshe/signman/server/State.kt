@@ -6,27 +6,27 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
 import net.joshe.signman.api.IndexedColor
-import net.joshe.signman.api.RGB
 import net.joshe.signman.api.RGBColor
 import net.joshe.signman.api.SignColor
 import java.io.InputStream
 import java.io.OutputStream
 
 class State private constructor(
+    private val default: Snapshot,
     private var snap: Snapshot,
     private val onUpdate: (State.(Snapshot) -> Unit)? = null) {
     companion object {
-        private val default = Snapshot("",
-            fg = RGBColor(RGB(0, 0, 0)),
-            bg = RGBColor(RGB(255, 255, 255)))
-
-        fun initialize(text: String = "", fg: SignColor = default.fg, bg: SignColor = default.bg,
-                       onUpdate: State.(Snapshot) -> Unit)
-                = State(Snapshot(text, bg = bg, fg = fg), onUpdate = onUpdate)
+        fun initialize(config: Config.ColorConfig, text: String = "", fg: SignColor? = null, bg: SignColor? = null,
+                       onUpdate: State.(Snapshot) -> Unit) = State(
+            default = Snapshot("", fg = config.foreground, bg = config.background),
+            snap = Snapshot(text, bg = bg ?: config.foreground, fg = fg ?: config.background),
+            onUpdate = onUpdate)
 
         @OptIn(ExperimentalSerializationApi::class)
-        fun load(stream: InputStream, onUpdate: State.(Snapshot) -> Unit)
-                = State(Json.decodeFromStream<Snapshot>(stream), onUpdate)
+        fun load(config: Config.ColorConfig, stream: InputStream, onUpdate: State.(Snapshot) -> Unit) = State(
+            default = Snapshot("", fg = config.foreground, bg = config.background),
+            snap = Json.decodeFromStream<Snapshot>(stream),
+            onUpdate = onUpdate)
     }
 
     @OptIn(ExperimentalSerializationApi::class)

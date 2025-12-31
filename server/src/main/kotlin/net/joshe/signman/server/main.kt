@@ -79,10 +79,10 @@ class SignmanServer : SuspendingCliktCommand() {
         }
         val state = try {
             file.inputStream().use { input ->
-                State.load(input, fn)
+                State.load(config.sign.color, input, fn)
             }
         } catch (_: Exception) {
-            State.initialize(onUpdate = fn)
+            State.initialize(config.sign.color, onUpdate = fn)
         }
         updated = MutableStateFlow(Cacheable.create(config, state.snapshot, renderer))
 

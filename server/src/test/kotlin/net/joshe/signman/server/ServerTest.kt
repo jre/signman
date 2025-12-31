@@ -127,11 +127,11 @@ class ServerTest {
 
     private fun Instantx.toHttpTime() = toLocalDateTime(TimeZone.UTC).format(httpTimeFmt)
 
-    private suspend fun mkStateRgb(onUpdate: State.(State.Snapshot) -> Unit)
-            = State.initialize(fg = defFgRgb, bg = defBgRgb, onUpdate = onUpdate)
+    private suspend fun mkStateRgb(config: Config, onUpdate: State.(State.Snapshot) -> Unit)
+            = State.initialize(config.sign.color, fg = defFgRgb, bg = defBgRgb, onUpdate = onUpdate)
 
-    private suspend fun mkStateIdx(onUpdate: State.(State.Snapshot) -> Unit)
-            = State.initialize(fg = defFgIdx, bg = defBgIdx, onUpdate = onUpdate)
+    private suspend fun mkStateIdx(config: Config, onUpdate: State.(State.Snapshot) -> Unit)
+            = State.initialize(config.sign.color, fg = defFgIdx, bg = defBgIdx, onUpdate = onUpdate)
 
     private fun IndexedColor.toRgb() = RGBColor(rgb)
 
@@ -176,13 +176,13 @@ class ServerTest {
     @Test fun testMainRgb() = mainTests(configRgb, uuidRgb, "alice", ::mkStateRgb)
     @Test fun testMainIndexed() = mainTests(configIdx, uuidIdx, "bob", ::mkStateIdx)
 
-    private fun mainTests(config: Config, uuid: Uuid, user: String, mkState: suspend (State.(State.Snapshot) -> Unit) -> State)
-    = runTest {
+    private fun mainTests(config: Config, uuid: Uuid, user: String,
+                          mkState: suspend (Config, State.(State.Snapshot) -> Unit) -> State) = runTest {
         val scope = this
         val renderer = Renderer(config, null)
         var updated = 0
         var flow: MutableStateFlow<Cacheable>? = null
-        val state = mkState { snap ->
+        val state = mkState(config) { snap ->
             updated++
             scope.launch { flow!!.emit(Cacheable.create(config, snap, renderer)) }
         }
@@ -308,12 +308,12 @@ class ServerTest {
     @Test fun testCacheRgb() = cacheTests(configRgb, uuidRgb, ::mkStateRgb)
     @Test fun testCacheIndexed() = cacheTests(configIdx, uuidIdx, ::mkStateIdx)
 
-    private fun cacheTests(config: Config, uuid: Uuid, mkState: suspend (State.(State.Snapshot) -> Unit) -> State)
-    = runTest {
+    private fun cacheTests(config: Config, uuid: Uuid,
+                           mkState: suspend (Config, State.(State.Snapshot) -> Unit) -> State) = runTest {
         val scope = this
         val renderer = Renderer(config, null)
         var flow: MutableStateFlow<Cacheable>? = null
-        val state = mkState { snap ->
+        val state = mkState(config) { snap ->
             scope.launch { flow!!.emit(Cacheable.create(config, snap, renderer)) }
         }
         flow = MutableStateFlow(Cacheable.create(config, state.snapshot, renderer))
@@ -411,11 +411,11 @@ class ServerTest {
     @Test fun testSseIndexed() = sseTests(configIdx, uuidIdx, "bob", ::mkStateIdx)
 
     private fun sseTests(config: Config, uuid: Uuid, user: String,
-                         mkState: suspend (State.(State.Snapshot) -> Unit) -> State) = runTest {
+                         mkState: suspend (Config, State.(State.Snapshot) -> Unit) -> State) = runTest {
         val scope = this
         val renderer = Renderer(config, null)
         var flow: MutableStateFlow<Cacheable>? = null
-        val state = mkState { snap ->
+        val state = mkState(config) { snap ->
             scope.launch { //(start = CoroutineStart.UNDISPATCHED) {
                 flow!!.emit(Cacheable.create(config, snap, renderer))
             }

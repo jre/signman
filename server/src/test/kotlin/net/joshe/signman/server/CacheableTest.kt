@@ -27,7 +27,7 @@ class CacheableTest {
     private val renderer = Renderer(conf, null)
 
     private fun defState(onUpdate: State.(State.Snapshot) -> Unit)
-            = State.initialize(defText, fg = defFg, bg = defBg, onUpdate)
+            = State.initialize(conf.sign.color, defText, fg = defFg, bg = defBg, onUpdate)
 
     @Test fun testDifferent() = runBlocking {
         var lastSnap: State.Snapshot

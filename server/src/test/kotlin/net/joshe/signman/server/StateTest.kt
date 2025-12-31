@@ -14,17 +14,20 @@ internal class StateTest {
     private val bg = RGBColor(RGB(0, 0, 255))
     private val otherFg = RGBColor(RGB(16, 16, 16))
     private val otherBg = RGBColor(RGB(0, 255, 0))
+    private val defFg = RGBColor(RGB(1, 1, 1))
+    private val defBg = RGBColor(RGB(254, 254, 254))
+    private val config: Config.ColorConfig = Config.RGBColorConfig(foreground = defFg, background = defBg)
 
     private val jsonText = """{"text":"TEST",""" +
             """"bg":{"type":"rgb","rgb":"${bg.rgb.toHexString()}"},""" +
             """"fg":{"type":"rgb","rgb":"${fg.rgb.toHexString()}"}}"""
 
     private fun load(f: State.(State.Snapshot) -> Unit = {}) = runBlocking {
-        State.load(ByteArrayInputStream(jsonText.toByteArray()), f)
+        State.load(config, ByteArrayInputStream(jsonText.toByteArray()), f)
     }
 
     private fun mk(f: (State.(State.Snapshot) -> Unit) = {}) = runBlocking {
-        State.initialize(text = "TEST", fg = fg, bg = bg, onUpdate = f)
+        State.initialize(config, text = "TEST", fg = fg, bg = bg, onUpdate = f)
     }
 
     @Test fun testStateLoad() = assertEquals(mk().snapshot, load().snapshot)
@@ -56,8 +59,6 @@ internal class StateTest {
     }
 
     @Test fun testStateErase(): Unit = runBlocking {
-        val black = RGBColor(RGB(0, 0, 0))
-        val white = RGBColor(RGB(255, 255, 255))
         var updateCount = 0
         var lastSnap: State.Snapshot
         val actual = load {
@@ -71,7 +72,7 @@ internal class StateTest {
         val res = actual.erase()
         assertEquals(1, updateCount)
         assertNotEquals(firstUpdate, lastSnap)
-        assertEquals(State.Snapshot("", fg = black, bg = white), res)
+        assertEquals(State.Snapshot("", fg = defFg, bg = defBg), res)
         assertEquals(res, lastSnap)
         assertEquals(res, actual.snapshot)
     }

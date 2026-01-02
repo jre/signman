@@ -187,13 +187,14 @@ private abstract class ApiCommand : BaseCommand() {
 
         val lowName = query.lowercase()
         for (fn in listOf<(String?) -> Boolean>(
-            { query == it }, { lowName == it }, { it != null && query in it }, { it != null && lowName in it })) {
+            { query == it }, { lowName == it?.lowercase() },
+            { it != null && query in it }, { it != null && lowName in it.lowercase() })) {
             val matches = names.filterValues(fn)
             if (matches.size == 1)
                 return matches.keys.first()
             else if (matches.size > 1)
                 throw PrintMessage("Multiple servers match for \"$query\": " +
-                        "\"${matches.keys.sorted().joinToString("\", \"")}\"")
+                        "\"${matches.map(::serverString).sorted().joinToString("\", \"")}\"")
         }
         throw PrintMessage("No servers match \"$query\"")
     }
@@ -203,7 +204,7 @@ private abstract class ApiCommand : BaseCommand() {
             names.keys.first()
         else if (names.size > 1)
             throw PrintMessage("Multiple servers: " +
-                    "\"${names.keys.sorted().joinToString("\", \"")}\"")
+                    "\"${names.map(::serverString).sorted().joinToString("\", \"")}\"")
         else
             throw PrintMessage("No cached servers found, try \"browse\"")
     }

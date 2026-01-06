@@ -80,4 +80,18 @@ internal class StateTest {
     @Test fun testSnapshotETag() {
         assertEquals("2o2j731", State.Snapshot("test", bg, fg).eTag())
     }
+
+    @Test fun testInitFgBgExplicit(): Unit = runBlocking {
+        val actual = State.initialize(config, "Initial text", fg, bg) {}
+        assertEquals(State.Snapshot("Initial text", fg = fg, bg = bg), actual.snapshot)
+        actual.erase()
+        assertEquals(State.Snapshot("", fg = defFg, bg = defBg), actual.snapshot)
+    }
+
+    @Test fun testInitFgBgDefault(): Unit = runBlocking {
+        val actual = State.initialize(config) {}
+        assertEquals(State.Snapshot("", fg = defFg, bg = defBg), actual.snapshot)
+        actual.erase()
+        assertEquals(State.Snapshot("", fg = defFg, bg = defBg), actual.snapshot)
+    }
 }

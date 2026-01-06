@@ -19,7 +19,7 @@ class State private constructor(
         fun initialize(config: Config.ColorConfig, text: String = "", fg: SignColor? = null, bg: SignColor? = null,
                        onUpdate: State.(Snapshot) -> Unit) = State(
             default = Snapshot("", fg = config.foreground, bg = config.background),
-            snap = Snapshot(text, bg = bg ?: config.foreground, fg = fg ?: config.background),
+            snap = Snapshot(text, fg = fg ?: config.foreground, bg = bg ?: config.background),
             onUpdate = onUpdate)
 
         @OptIn(ExperimentalSerializationApi::class)

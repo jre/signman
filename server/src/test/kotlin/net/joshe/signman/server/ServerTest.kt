@@ -89,15 +89,14 @@ class ServerTest {
         name = "RGB test server",
         auth = Config.AuthConfig(Config.AuthType.FILE, File("/garbage")),
         server = Config.StandaloneServerConfig(directory = File("/nonsense")),
-        sign = Config.SignConfig(width = 100, height = 100,
-            color = Config.RGBColorConfig(foreground = defFgRgb, background = defBgRgb)))
+        sign = Config.RGBSignConfig(width = 100, height = 100, foreground = defFgRgb, background = defBgRgb))
 
     private val configIdx = Config(
         name = "Indexed test server",
         auth = Config.AuthConfig(Config.AuthType.FILE, File("/garbage")),
         server = Config.StandaloneServerConfig(directory = File("/nonsense")),
-        sign = Config.SignConfig(width = 100, height = 100, color = Config.IndexedColorConfig(
-            foregroundIndex = defFgIdx.index, backgroundIndex = defBgIdx.index, palette = colors8)))
+        sign = Config.IndexedSignConfig(width = 100, height = 100,
+            foregroundIndex = defFgIdx.index, backgroundIndex = defBgIdx.index, palette = colors8))
 
     private val credentials = mapOf("alice" to "apple", "bob" to "banana")
     private val auth = Auth.loadStream(ByteArrayInputStream(
@@ -124,15 +123,15 @@ class ServerTest {
     private fun Instantx.toHttpTime() = toLocalDateTime(TimeZone.UTC).format(httpTimeFmt)
 
     private suspend fun mkStateRgb(config: Config, onUpdate: State.(State.Snapshot) -> Unit)
-            = State.initialize(config.sign.color, fg = defFgRgb, bg = defBgRgb, onUpdate = onUpdate)
+            = State.initialize(config.sign, fg = defFgRgb, bg = defBgRgb, onUpdate = onUpdate)
 
     private suspend fun mkStateIdx(config: Config, onUpdate: State.(State.Snapshot) -> Unit)
-            = State.initialize(config.sign.color, fg = defFgIdx, bg = defBgIdx, onUpdate = onUpdate)
+            = State.initialize(config.sign, fg = defFgIdx, bg = defBgIdx, onUpdate = onUpdate)
 
     private fun IndexedColor.toRgb() = RGBColor(rgb)
 
     private fun SignColor.convert(config: Config)
-            = if (config.sign.color.type == ColorType.RGB && this is IndexedColor) toRgb() else this
+            = if (config.sign.type == ColorType.RGB && this is IndexedColor) toRgb() else this
 
     private fun HttpClientConfig<out HttpClientEngineConfig>.configureClient(user: String?) {
         if (user != null)
@@ -160,12 +159,12 @@ class ServerTest {
     }
 
     private fun getStatusResp(config: Config, text: String, fg: SignColor? = null, bg: SignColor? = null): StatusResponse {
-        val curFg = (fg ?: config.sign.color.foreground).convert(config)
-        val curBg = (bg ?: config.sign.color.background).convert(config)
+        val curFg = (fg ?: config.sign.foreground).convert(config)
+        val curBg = (bg ?: config.sign.background).convert(config)
         val snap = State.Snapshot(text, fg = curFg, bg = curBg)
-        return StatusResponse(type = config.sign.color.type, text = text, fg = curFg, bg = curBg,
-            defaultFg = config.sign.color.foreground, defaultBg = config.sign.color.background,
-            colors = if (config.sign.color.type == ColorType.INDEXED) colors8 else null,
+        return StatusResponse(type = config.sign.type, text = text, fg = curFg, bg = curBg,
+            defaultFg = config.sign.foreground, defaultBg = config.sign.background,
+            colors = if (config.sign.type == ColorType.INDEXED) colors8 else null,
             updateTag = snap.eTag())
     }
 
@@ -257,7 +256,7 @@ class ServerTest {
             assertEquals(200, resp.status.value)
             assertEquals(1, updated)
             assertEquals(State.Snapshot("OK!", fg = colors8[3].convert(config),
-                bg = config.sign.color.background), flow.value.state)
+                bg = config.sign.background), flow.value.state)
 
             resp = client.get("/api/v1/status")
             testScheduler.advanceUntilIdle()
@@ -282,7 +281,7 @@ class ServerTest {
             assertEquals(200, resp.status.value)
             assertEquals(2, updated)
             assertEquals(State.Snapshot("Yay?", bg = colors8[6].convert(config),
-                fg = config.sign.color.foreground), flow.value.state)
+                fg = config.sign.foreground), flow.value.state)
 
             resp = client.get("/api/v1/status")
             testScheduler.advanceUntilIdle()
@@ -303,8 +302,8 @@ class ServerTest {
             testScheduler.advanceUntilIdle()
             assertEquals(200, resp.status.value)
             assertEquals(3, updated)
-            assertEquals(State.Snapshot("", bg = config.sign.color.background,
-                fg = config.sign.color.foreground), flow.value.state)
+            assertEquals(State.Snapshot("", bg = config.sign.background,
+                fg = config.sign.foreground), flow.value.state)
         }
     }
 

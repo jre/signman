@@ -40,6 +40,8 @@ data class Config(val server: ServerConfig, val sign: SignConfig, val auth: Auth
         fun load(stream: InputStream) = Properties.decodeFromStringMap<Config>(java.util.Properties().apply {
             load(stream) }.map { (k, v) ->
             Pair(k as String, v.toString().trim(' ', '\t')) }.toMap())
+
+        const val DEFAULT_FONT = Font.SERIF
     }
 
     @OptIn(ExperimentalSerializationApi::class)
@@ -71,33 +73,39 @@ data class Config(val server: ServerConfig, val sign: SignConfig, val auth: Auth
         override val directory: File) : ServerConfig()
 
     @Serializable
-    data class SignConfig(val font: String = Font.SERIF, val width: Int, val height: Int, val color: ColorConfig)
-
-    @Serializable
-    sealed class ColorConfig {
+    sealed class SignConfig {
+        abstract val font: String
+        abstract val width: Int
+        abstract val height: Int
         abstract val foreground: SignColor
         abstract val background: SignColor
         val type: ColorType get() = when (this) {
-            is RGBColorConfig -> ColorType.RGB
-            is IndexedColorConfig -> ColorType.INDEXED
+            is RGBSignConfig -> ColorType.RGB
+            is IndexedSignConfig -> ColorType.INDEXED
         }
     }
 
     @Serializable
     @SerialName(rgbColorTypeKey)
-    data class RGBColorConfig(
+    data class RGBSignConfig(
+        override val font: String = DEFAULT_FONT,
+        override val width: Int,
+        override val height: Int,
         @Serializable(with = BareRGBColorSerializer::class)
         override val foreground: RGBColor,
         @Serializable(with = BareRGBColorSerializer::class)
-        override val background: RGBColor) : ColorConfig()
+        override val background: RGBColor) : SignConfig()
 
     @Serializable
     @SerialName(indexedColorTypeKey)
-    data class IndexedColorConfig(
+    data class IndexedSignConfig(
+        override val font: String = DEFAULT_FONT,
+        override val width: Int,
+        override val height: Int,
         @SerialName("foreground") val foregroundIndex: Int,
         @SerialName("background") val backgroundIndex: Int,
         @Serializable(with = IndexedColorPairListSerializer::class)
-        val palette: List<IndexedColor>) : ColorConfig() {
+        val palette: List<IndexedColor>) : SignConfig() {
         @Transient override val foreground = palette[foregroundIndex]
         @Transient override val background = palette[backgroundIndex]
     }

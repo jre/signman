@@ -16,14 +16,14 @@ class State private constructor(
     private var snap: Snapshot,
     private val onUpdate: (State.(Snapshot) -> Unit)? = null) {
     companion object {
-        fun initialize(config: Config.ColorConfig, text: String = "", fg: SignColor? = null, bg: SignColor? = null,
+        fun initialize(config: Config.SignConfig, text: String = "", fg: SignColor? = null, bg: SignColor? = null,
                        onUpdate: State.(Snapshot) -> Unit) = State(
             default = Snapshot("", fg = config.foreground, bg = config.background),
             snap = Snapshot(text, fg = fg ?: config.foreground, bg = bg ?: config.background),
             onUpdate = onUpdate)
 
         @OptIn(ExperimentalSerializationApi::class)
-        fun load(config: Config.ColorConfig, stream: InputStream, onUpdate: State.(Snapshot) -> Unit) = State(
+        fun load(config: Config.SignConfig, stream: InputStream, onUpdate: State.(Snapshot) -> Unit) = State(
             default = Snapshot("", fg = config.foreground, bg = config.background),
             snap = Json.decodeFromStream<Snapshot>(stream),
             onUpdate = onUpdate)

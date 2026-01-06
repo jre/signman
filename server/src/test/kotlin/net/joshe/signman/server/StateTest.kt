@@ -16,7 +16,7 @@ internal class StateTest {
     private val otherBg = RGBColor(RGB(0, 255, 0))
     private val defFg = RGBColor(RGB(1, 1, 1))
     private val defBg = RGBColor(RGB(254, 254, 254))
-    private val config: Config.ColorConfig = Config.RGBColorConfig(foreground = defFg, background = defBg)
+    private val config = Config.RGBSignConfig(width = 1, height = 1, foreground = defFg, background = defBg)
 
     private val jsonText = """{"text":"TEST",""" +
             """"bg":{"type":"rgb","rgb":"${bg.rgb.toHexString()}"},""" +

@@ -18,9 +18,9 @@ class Renderer(configuration: Config, private val driver: SignDriver?) {
     private val margin = min(conf.width, conf.height) / 10 // XXX
     private var lastFontSize = 12
 
-    val img = when (conf.color) {
-        is Config.RGBColorConfig -> BufferedImage(conf.width, conf.height, BufferedImage.TYPE_INT_RGB)
-        is Config.IndexedColorConfig -> conf.color.palette.let { colors ->
+    val img = when (conf) {
+        is Config.RGBSignConfig -> BufferedImage(conf.width, conf.height, BufferedImage.TYPE_INT_RGB)
+        is Config.IndexedSignConfig -> conf.palette.let { colors ->
             val bits = 1.rangeTo(16).first { 1.shl(it - 1) >= colors.size }
             val r = colors.map { it.rgb.r.toByte() }.toByteArray()
             val g = colors.map { it.rgb.g.toByte() }.toByteArray()

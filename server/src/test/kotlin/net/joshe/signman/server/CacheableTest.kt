@@ -21,13 +21,12 @@ class CacheableTest {
     private val defSnap = State.Snapshot(defText, fg = defFg, bg = defBg)
     private val conf = Config(
         server = Config.StandaloneServerConfig(directory = File("/nonexistent")),
-        sign = Config.SignConfig(width = 100, height = 60,
-            color = Config.RGBColorConfig(foreground = defFg, background = defBg)),
+        sign = Config.RGBSignConfig(width = 100, height = 60, foreground = defFg, background = defBg),
         auth = Config.AuthConfig(Config.AuthType.FILE, File("/fake/file")))
     private val renderer = Renderer(conf, null)
 
     private fun defState(onUpdate: State.(State.Snapshot) -> Unit)
-            = State.initialize(conf.sign.color, defText, fg = defFg, bg = defBg, onUpdate)
+            = State.initialize(conf.sign, defText, fg = defFg, bg = defBg, onUpdate)
 
     @Test fun testDifferent() = runBlocking {
         var lastSnap: State.Snapshot

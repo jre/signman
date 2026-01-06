@@ -16,11 +16,11 @@ server.type = standalone
 server.directory = \t /home/signman/state  \t
 auth.type  = file
  auth.path= /home/signman/passwd
+sign.type =  \t rgb
 sign.width =   640\t
 sign.height =480  
-sign.color.type =  \t rgb
-sign.color.foreground =  f1f2f3 
-sign.color.background =   010203
+sign.foreground =  f1f2f3 
+sign.background =   010203
 """
 
     private val out1 = """auth.path=/home/signman/passwd
@@ -29,11 +29,11 @@ name=Signman Server
 server.directory=/home/signman/state
 server.port=80
 server.type=standalone
-sign.color.background=010203
-sign.color.foreground=f1f2f3
-sign.color.type=rgb
+sign.background=010203
 sign.font=Serif
+sign.foreground=f1f2f3
 sign.height=480
+sign.type=rgb
 sign.width=640"""
 
     private val in2 = """# indexed color parsing test input
@@ -43,16 +43,16 @@ server.port = 8080
 server.directory = /var/signman
 auth.type = file
 auth.path = /etc/signman.passwd
+sign.type = indexed
 sign.width = 340
 sign.height = 180
 sign.font = Sans
-sign.color.type = indexed
-sign.color.palette.0 = 000000 Black
-sign.color.palette.1 =  ffffff   White  
-sign.color.palette.2 = \tffff00 \t Yellow \t
-sign.color.palette.3 = \t ff0000\t  Red,  I guess?\t
-sign.color.foreground = 0
-sign.color.background = 1
+sign.palette.0 = 000000 Black
+sign.palette.1 =  ffffff   White  
+sign.palette.2 = \tffff00 \t Yellow \t
+sign.palette.3 = \t ff0000\t  Red,  I guess?\t
+sign.foreground = 0
+sign.background = 1
 driver.sign.type = dummy
 driver.sign.sign = foo
 driver.spi.type = dummy
@@ -72,15 +72,15 @@ name=Config Test
 server.directory=/var/signman
 server.port=8080
 server.type=standalone
-sign.color.background=1
-sign.color.foreground=0
-sign.color.palette.0=000000 Black
-sign.color.palette.1=ffffff White
-sign.color.palette.2=ffff00 Yellow
-sign.color.palette.3=ff0000 Red,  I guess?
-sign.color.type=indexed
+sign.background=1
 sign.font=Sans
+sign.foreground=0
 sign.height=180
+sign.palette.0=000000 Black
+sign.palette.1=ffffff White
+sign.palette.2=ffff00 Yellow
+sign.palette.3=ff0000 Red,  I guess?
+sign.type=indexed
 sign.width=340"""
 
     private val colors = listOf(
@@ -91,7 +91,7 @@ sign.width=340"""
 
     private fun p(str: String) = Config.load(ByteArrayInputStream(str.toByteArray()))
 
-    private fun pci(str: String) = p(str).sign.color as? Config.IndexedColorConfig
+    private fun pci(str: String) = p(str).sign as? Config.IndexedSignConfig
 
     private fun output(config: Config) = ByteArrayOutputStream().also { config.store(it) }.toString()
         .lines().filterNot { it.startsWith('#') || it.isEmpty() }.sorted().joinToString("\n")
@@ -101,7 +101,7 @@ sign.width=340"""
     @Test fun testParse1Dir() { assertEquals(File("/home/signman/state"), p(in1).server.directory) }
     @Test fun testParse1Width() { assertEquals(640, p(in1).sign.width) }
     @Test fun testParse1Height() { assertEquals(480, p(in1).sign.height) }
-    @Test fun testParse1Scheme() { assert(p(in1).sign.color is Config.RGBColorConfig) }
+    @Test fun testParse1Scheme() { assert(p(in1).sign is Config.RGBSignConfig) }
     @Test fun testParse1Colors() { assertNull(pci(in1)?.palette) }
     @Test fun testParse1Font() { assertEquals("Serif", p(in1).sign.font) }
     @Test fun testParse1AuthType() { assertEquals(Config.AuthType.FILE, p(in1).auth.type) }
@@ -113,7 +113,7 @@ sign.width=340"""
     @Test fun testParse2Dir() { assertEquals(File("/var/signman"), p(in2).server.directory) }
     @Test fun testParse2Width() { assertEquals(340, p(in2).sign.width) }
     @Test fun testParse2Height() { assertEquals(180, p(in2).sign.height) }
-    @Test fun testParse2Scheme() { assert(p(in2).sign.color is Config.IndexedColorConfig) }
+    @Test fun testParse2Scheme() { assert(p(in2).sign is Config.IndexedSignConfig) }
     @Test fun testParse2Colors() { assertEquals(colors.size, pci(in2)?.palette?.size) }
     @Test fun testParse2Black() { assertEquals(colors[0], pci(in2)?.palette[0]) }
     @Test fun testParse2White() { assertEquals(colors[1], pci(in2)?.palette[1]) }

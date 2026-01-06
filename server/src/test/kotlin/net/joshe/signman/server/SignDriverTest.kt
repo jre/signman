@@ -13,9 +13,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SignDriverTest {
-    val conf = Config.SignConfig(width = 20, height = 10, color = Config.RGBColorConfig(
+    val conf = Config.RGBSignConfig(width = 20, height = 10,
         foreground = RGBColor(RGB(0, 0, 0)),
-        background = RGBColor(RGB(255, 255, 255))))
+        background = RGBColor(RGB(255, 255, 255)))
 
     @Test fun testPixelPosition() {
         assertEquals(23, pixelCoordsIndex(conf, 3, 1))

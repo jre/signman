@@ -136,7 +136,7 @@ class Server(private val config: Config,
             install(ContentNegotiation) {
                 json(Json {
                     serializersModule = buildSerializersModule(
-                        (config.sign.color as? Config.IndexedColorConfig)?.palette)
+                        (config.sign as? Config.IndexedSignConfig)?.palette)
                     isLenient = true
                     ignoreUnknownKeys = true
                 })
@@ -192,10 +192,10 @@ class Server(private val config: Config,
             text = cache.state.text,
             fg = cache.state.fg,
             bg = cache.state.bg,
-            type = config.sign.color.type,
-            defaultFg = config.sign.color.foreground,
-            defaultBg = config.sign.color.background,
-            colors = (config.sign.color as? Config.IndexedColorConfig)?.palette,
+            type = config.sign.type,
+            defaultFg = config.sign.foreground,
+            defaultBg = config.sign.background,
+            colors = (config.sign as? Config.IndexedSignConfig)?.palette,
             updateTag = cache.stateETag))
     }
 
@@ -219,8 +219,8 @@ class Server(private val config: Config,
             updates.cancellableCollect(myCoroutineContext) { cache ->
                 if (updated == null)
                     updated = state.update(text = req.text,
-                        fg = req.fg ?: config.sign.color.foreground,
-                        bg = req.bg ?: config.sign.color.background)
+                        fg = req.fg ?: config.sign.foreground,
+                        bg = req.bg ?: config.sign.background)
                 if (updated == cache.state)
                     currentCoroutineContext().cancel()
             }

@@ -1,3 +1,5 @@
+import org.gradle.jvm.application.tasks.CreateStartScripts as CreateStartScriptsTask
+
 plugins {
     alias(libs.plugins.gradleup.shadow)
     alias(libs.plugins.kotlin.jvm)
@@ -57,8 +59,13 @@ distributions {
     }
 }
 
-tasks.named("nativeSourceDistTar") { dependsOn(tasks.compileJava) }
-tasks.named("nativeSourceDistZip") { dependsOn(tasks.compileJava) }
+tasks.named("nativeSourceDistTar", Tar::class.java) {
+    compression = Compression.GZIP
+    archiveExtension = "tar.gz"
+    dependsOn(tasks.compileJava)
+}
+
+tasks.named("nativeSourceDistZip") { enabled = false }
 
 tasks.withType<Jar> {
     manifest { attributes["Main-Class"] = application.mainClass }
@@ -68,3 +75,16 @@ tasks.shadowJar {
     archiveBaseName = "${rootProject.name}-${project.name}"
     archiveClassifier = null
 }
+
+tasks.named("startShadowScripts", CreateStartScriptsTask::class.java) {
+    applicationName = "${rootProject.name}-${project.name}"
+}
+
+tasks.named("startScripts", CreateStartScriptsTask::class.java) {
+    enabled = false
+}
+
+tasks.distTar { enabled = false }
+tasks.distZip { enabled = false }
+tasks.shadowDistTar { enabled = false }
+tasks.shadowDistZip { enabled = false }

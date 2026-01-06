@@ -5,7 +5,7 @@ Requires=signman.socket
 
 [Service]
 Type=notify
-ExecStart=/usr/bin/java -jar /usr/share/signman/signman-server.jar
+ExecStart=/usr/share/signman/bin/signman-server
 Restart=always
 StandardInput=socket
 StandardOutput=null

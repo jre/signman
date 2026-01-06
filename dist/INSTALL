@@ -1,0 +1,47 @@
+Basic instructions for installing signman-server on a Linux
+system. They mau need some adjustment for your system.
+
+First you may need to configure your system for SPI and GPIO
+access. On a Raspberry Pi, this may involve adding the following line
+to /boot/firmware/config.txt:
+
+dtparam=spi=on
+
+It may also be desirable to disable the Raspberry Pi LED if used with
+a translucent enclosure:
+
+dtparam=act_led_trigger=off
+
+Next, install dependencies. On Debian variants, that might look like this:
+
+# apt install --install-recommends default-jdk-headless build-essential
+
+Next, add a user and group for signman:
+
+# adduser --system --group --home /home/signman signman
+# usermod --groups spi,gpio signman
+
+Now you will need to create configuration and password files based on
+the provided examples. Once the files have been created, install them
+using commands similar to the following:
+
+# install -m 400 -o signman -g signman signman.passwd /etc/
+# install -m 444 -o 0 -g 0 signman.conf /etc/
+
+Next build the native library:
+
+$ make
+
+Then install everything:
+
+# make install
+
+Finally, enable and start the server:
+
+# systemctl daemon-reload
+# systemctl enable signman.socket signman.service
+# systemctl start signman.service
+
+It may take some time to start, especially on a slow machine. Check
+the status with systemctl status signman.service and then verify with
+a web browser.

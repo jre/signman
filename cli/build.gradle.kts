@@ -1,3 +1,5 @@
+import org.gradle.jvm.application.tasks.CreateStartScripts as CreateStartScriptsTask
+
 plugins {
     alias(libs.plugins.gradleup.shadow)
     alias(libs.plugins.kotlin.jvm)
@@ -37,3 +39,16 @@ tasks.shadowJar {
     archiveBaseName = "${rootProject.name}-${project.name}"
     archiveClassifier = null
 }
+
+tasks.named("startShadowScripts", CreateStartScriptsTask::class.java) {
+    applicationName = "${rootProject.name}-${project.name}"
+}
+
+tasks.named("startScripts", CreateStartScriptsTask::class.java) {
+    enabled = false
+}
+
+tasks.distTar { enabled = false }
+tasks.distZip { enabled = false }
+tasks.shadowDistTar { enabled = false }
+tasks.shadowDistZip { enabled = false }

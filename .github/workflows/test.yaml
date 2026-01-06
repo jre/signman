@@ -4,7 +4,7 @@ on:
     branches:
       - master
 jobs:
-  debug-apk:
+  tests:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -15,7 +15,7 @@ jobs:
           distribution: zulu
           java-version: 17
           cache: gradle
-      - name: Build
+      - name: Build all modules
         run: ./gradlew assemble
-      - name: Test
+      - name: Test all modules
         run: ./gradlew check

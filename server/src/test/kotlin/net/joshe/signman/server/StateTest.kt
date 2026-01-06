@@ -56,6 +56,12 @@ internal class StateTest {
         assertEquals(State.Snapshot("TEST", fg = fg, bg = bg), up2)
         assertEquals(up2, lastSnap)
         assertEquals(up2, actual.snapshot)
+
+        val up3 = actual.update("Defaults")
+        assertEquals(3, updateCount)
+        assertEquals(State.Snapshot("Defaults", fg = defFg, bg = defBg), up3)
+        assertEquals(up3, lastSnap)
+        assertEquals(up3, actual.snapshot)
     }
 
     @Test fun testStateErase(): Unit = runBlocking {

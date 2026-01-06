@@ -48,6 +48,7 @@ import net.joshe.signman.api.RGBColor
 import net.joshe.signman.api.SignColor
 import net.joshe.signman.api.StatusResponse
 import net.joshe.signman.api.UpdateRequest
+import net.joshe.signman.api.UpdateResponse
 import net.joshe.signman.api.buildSerializersModule
 import org.slf4j.simple.SimpleLogger
 import java.io.ByteArrayInputStream
@@ -158,6 +159,11 @@ class ServerTest {
         defaultRequest { url("http://localhost:$port") }
     }
 
+    private fun getSnap(config: Config, text: String? = null, fg: SignColor? = null, bg: SignColor? = null) =
+        State.Snapshot(text ?: "",
+            fg = (fg ?: config.sign.foreground).convert(config),
+            bg = (bg ?: config.sign.background).convert(config))
+
     private fun getStatusResp(config: Config, text: String, fg: SignColor? = null, bg: SignColor? = null): StatusResponse {
         val curFg = (fg ?: config.sign.foreground).convert(config)
         val curBg = (bg ?: config.sign.background).convert(config)
@@ -167,6 +173,12 @@ class ServerTest {
             colors = if (config.sign.type == ColorType.INDEXED) colors8 else null,
             updateTag = snap.eTag())
     }
+
+    private fun getUpdateReq(config: Config, text: String, fg: SignColor? = null, bg: SignColor? = null) =
+        UpdateRequest(text, fg = (fg ?: config.sign.foreground).convert(config), bg = (bg ?: config.sign.background).convert(config))
+
+    private fun getUpdateResp(config: Config, text: String? = null, fg: SignColor? = null, bg: SignColor? = null) =
+        UpdateResponse(updateTag = getSnap(config, text, fg = fg, bg = bg).eTag())
 
     @Test fun testMainRgb() = mainTests(configRgb, uuidRgb, "alice", ::mkStateRgb)
     @Test fun testMainIndexed() = mainTests(configIdx, uuidIdx, "bob", ::mkStateIdx)
@@ -234,7 +246,7 @@ class ServerTest {
 
             resp = anonClient.post("/api/v1/update") {
                 contentType(ContentType.Application.Json)
-                setBody(UpdateRequest("OK!", fg = colors8[3].convert(config)))
+                setBody(getUpdateReq(config, "OK!", fg = colors8[3]))
             }
             testScheduler.advanceUntilIdle()
             assertEquals(401, resp.status.value)
@@ -250,13 +262,12 @@ class ServerTest {
 
             resp = client.post("/api/v1/update") {
                 contentType(ContentType.Application.Json)
-                setBody(UpdateRequest("OK!", fg = colors8[3].convert(config)))
+                setBody(getUpdateReq(config, "OK!", fg = colors8[3]))
             }
             testScheduler.advanceUntilIdle()
             assertEquals(200, resp.status.value)
             assertEquals(1, updated)
-            assertEquals(State.Snapshot("OK!", fg = colors8[3].convert(config),
-                bg = config.sign.background), flow.value.state)
+            assertEquals(getSnap(config, "OK!", fg = colors8[3]), flow.value.state)
 
             resp = client.get("/api/v1/status")
             testScheduler.advanceUntilIdle()
@@ -275,13 +286,13 @@ class ServerTest {
 
             resp = client.post("/api/v1/update") {
                 contentType(ContentType.Application.Json)
-                setBody(UpdateRequest("Yay?", bg = colors8[6].convert(config)))
+                setBody(getUpdateReq(config, "Yay?", bg = colors8[6]))
             }
             testScheduler.advanceUntilIdle()
             assertEquals(200, resp.status.value)
             assertEquals(2, updated)
-            assertEquals(State.Snapshot("Yay?", bg = colors8[6].convert(config),
-                fg = config.sign.foreground), flow.value.state)
+            assertEquals(getSnap(config, "Yay?", bg = colors8[6]), flow.value.state)
+            assertEquals(getUpdateResp(config, "Yay?", bg = colors8[6]), resp.body())
 
             resp = client.get("/api/v1/status")
             testScheduler.advanceUntilIdle()
@@ -302,8 +313,8 @@ class ServerTest {
             testScheduler.advanceUntilIdle()
             assertEquals(200, resp.status.value)
             assertEquals(3, updated)
-            assertEquals(State.Snapshot("", bg = config.sign.background,
-                fg = config.sign.foreground), flow.value.state)
+            assertEquals(getSnap(config), flow.value.state)
+            assertEquals(getUpdateResp(config), resp.body())
         }
     }
 
@@ -440,7 +451,7 @@ class ServerTest {
 
                     client.post("/api/v1/update") {
                         contentType(ContentType.Application.Json)
-                        setBody(UpdateRequest(text = firstSnap.text, fg = firstSnap.fg, bg = firstSnap.bg))
+                        setBody(getUpdateReq(config, firstSnap.text, fg = firstSnap.fg, bg = firstSnap.bg))
                     }
                     event = events.receive()
                     assertEquals("updated", event.event)
@@ -449,12 +460,10 @@ class ServerTest {
                         event.comments.isNullOrEmpty() && event.id.isNullOrEmpty()
                     }
 
-                    val thirdSnap = State.Snapshot(text = "server, send me some events",
-                        fg = colors8[0].convert(config), bg = colors8[5].convert(config))
+                    val thirdSnap = getSnap(config, "server, send me some events", fg = colors8[0], bg = colors8[5])
                     client.post("/api/v1/update") {
                         contentType(ContentType.Application.Json)
-                        setBody(UpdateRequest(text = "server, send me some events",
-                            fg = colors8[0].convert(config), bg = colors8[5].convert(config)))
+                        setBody(getUpdateReq(config, "server, send me some events", fg = colors8[0], bg = colors8[5]))
                     }
                     event = events.receive()
                     assertEquals("updated", event.event)

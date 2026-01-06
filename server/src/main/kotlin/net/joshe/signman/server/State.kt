@@ -40,8 +40,8 @@ class State private constructor(
         return default
     }
 
-    fun update(text: String, bg: SignColor, fg: SignColor): Snapshot {
-        val newSnap = Snapshot(text, fg = fg, bg = bg)
+    fun update(text: String, bg: SignColor? = null, fg: SignColor? = null): Snapshot {
+        val newSnap = Snapshot(text, fg = fg ?: default.fg, bg = bg ?: default.bg)
         snap = newSnap
         onUpdate?.invoke(this, newSnap)
         return newSnap

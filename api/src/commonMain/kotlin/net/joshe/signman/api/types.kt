@@ -100,6 +100,10 @@ data class UpdateRequest(
     @Contextual val bg: SignColor? = null,
     @Contextual val fg: SignColor? = null)
 
+@Serializable
+data class UpdateResponse(
+    @SerialName("update-tag") val updateTag: String)
+
 fun buildSerializersModule(colors: List<IndexedColor>?) = SerializersModule {
     contextual(SignColor::class, BareSignColorJsonSerializer(colors))
 }

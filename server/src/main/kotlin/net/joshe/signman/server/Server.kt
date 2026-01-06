@@ -46,9 +46,11 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import net.joshe.signman.api.EVENT_UPDATED
 import net.joshe.signman.api.QueryResponse
 import net.joshe.signman.api.StatusResponse
 import net.joshe.signman.api.UpdateRequest
+import net.joshe.signman.api.UpdateResponse
 import net.joshe.signman.api.buildSerializersModule
 import net.joshe.signman.api.toHttpAuthenticationRealm
 import org.eclipse.jetty.server.ServerConnector
@@ -199,33 +201,26 @@ class Server(private val config: Config,
             updateTag = cache.stateETag))
     }
 
-    private suspend fun endpointClear(call: RoutingCall) {
-        var updated: State.Snapshot? = null
+    private suspend fun doUpdate(block: () -> State.Snapshot): String {
+        var updateTag: String? = null
         updateMutex.withLock {
             updates.cancellableCollect(myCoroutineContext) { cache ->
-                if (updated == null)
-                    updated = state.erase()
-                if (updated == cache.state)
+                if (updateTag == null)
+                    updateTag = block().eTag()
+                if (updateTag == cache.stateETag)
                     currentCoroutineContext().cancel()
             }
         }
-        call.respond(HttpStatusCode.OK)
+        return updateTag!!
+    }
+
+    private suspend fun endpointClear(call: RoutingCall) {
+        call.respond(UpdateResponse(doUpdate(state::erase)))
     }
 
     private suspend fun endpointUpdate(call: RoutingCall) {
-        var updated: State.Snapshot? = null
         val req = call.receive<UpdateRequest>()
-        updateMutex.withLock {
-            updates.cancellableCollect(myCoroutineContext) { cache ->
-                if (updated == null)
-                    updated = state.update(text = req.text,
-                        fg = req.fg ?: config.sign.foreground,
-                        bg = req.bg ?: config.sign.background)
-                if (updated == cache.state)
-                    currentCoroutineContext().cancel()
-            }
-        }
-        call.respond(HttpStatusCode.OK)
+        call.respond(UpdateResponse(doUpdate { state.update(req.text, fg = req.fg, bg = req.bg) }))
     }
 
     private suspend fun endpointEvents(session: ServerSSESession) {
@@ -234,13 +229,11 @@ class Server(private val config: Config,
             period = 30.seconds
         }
         updates.collect { cache ->
-            session.send(cache.stateETag, event = UPDATE_EVENT)
+            session.send(cache.stateETag, event = EVENT_UPDATED)
         }
     }
 
     companion object {
-        private const val UPDATE_EVENT = "updated"
-
         fun getHtml(config: Config, state: State.Snapshot, stateETag: String) = """<!DOCTYPE html>
 <html>
     <head>
@@ -263,7 +256,7 @@ class Server(private val config: Config,
         </style>
         <script>
             var source = new EventSource("/api/v1/events");
-            source.addEventListener("$UPDATE_EVENT", function (event) {
+            source.addEventListener("$EVENT_UPDATED", function (event) {
                 if (event.data != "$stateETag") {
                     source.close();
                     location.reload();

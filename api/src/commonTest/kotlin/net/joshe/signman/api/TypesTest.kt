@@ -181,4 +181,11 @@ internal class TypesTest {
             assertEquals(json, j.encodeToString(req))
         }
     }
+
+    @Test fun testUpdateResponse() {
+        val json = """{"update-tag":"fake tag"}"""
+        val resp = UpdateResponse("fake tag")
+        assertEquals(resp, j.decodeFromString(json))
+        assertEquals(json, j.encodeToString(resp))
+    }
 }

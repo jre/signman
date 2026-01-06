@@ -56,6 +56,7 @@ import net.joshe.signman.api.toHttpAuthenticationRealm
 import org.eclipse.jetty.server.ServerConnector
 import org.jetbrains.annotations.TestOnly
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
@@ -92,6 +93,7 @@ class Server(private val config: Config,
             embeddedServer(Jetty, config.server.port, module = module)
         is Config.SystemdServerConfig ->
             embeddedServer(Jetty, module = module, configure = {
+                idleTimeout = 1.minutes
                 connector {}
                 configureServer = {
                     connectors.forEach { (it as ServerConnector).isInheritChannel = true }
